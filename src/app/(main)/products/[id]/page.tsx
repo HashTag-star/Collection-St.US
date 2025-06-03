@@ -5,13 +5,13 @@ import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'; // Added CardHeader, CardTitle, CardFooter
 import { Separator } from '@/components/ui/separator';
 import { Star, ShoppingCart, Plus, Minus, ChevronLeft } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { getProductById } from '@/lib/product-service';
+import { getProductById, getProducts } from '@/lib/product-service'; // Added getProducts
 import type { Product } from '@/lib/types';
 
 // Define the expected type for resolved params
@@ -21,61 +21,67 @@ type ParamsPropType = ResolvedParamsType | Promise<ResolvedParamsType>;
 
 // Custom hook to resolve params if they are a Promise
 function useResolvedParams(paramsProp: ParamsPropType): ResolvedParamsType | null {
-  // Check if paramsProp is a Promise by looking for a .then method
   if (typeof (paramsProp as Promise<ResolvedParamsType>)?.then === 'function') {
-    // If it's a Promise, use React.use() to resolve it.
-    // React.use() will suspend the component until the Promise resolves.
-    // If the promise rejects, React.use() will throw, to be caught by an Error Boundary.
     return React.use(paramsProp as Promise<ResolvedParamsType>);
   }
-  // If it's not a Promise, return it as is (it should be ResolvedParamsType or null/undefined).
   return paramsProp as ResolvedParamsType;
 }
 
 export default function ProductDetailPage({ params: paramsPropInput }: { params: ParamsPropType }) {
-  // Get the resolved params using the custom hook.
-  // This will suspend if paramsPropInput is a promise.
   const params = useResolvedParams(paramsPropInput);
 
   const [product, setProduct] = useState<Product | null>(null);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingRelated, setIsLoadingRelated] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
 
   useEffect(() => {
     const fetchProductData = async () => {
-      // params is now guaranteed to be the resolved object (or null if resolution failed/prop was null)
       if (params && typeof params.id === 'string') {
         setIsLoading(true);
+        setIsLoadingRelated(true);
         try {
           const fetchedProduct = await getProductById(params.id);
           if (fetchedProduct && fetchedProduct.status === 'Active') {
             setProduct(fetchedProduct);
             setSelectedImage(fetchedProduct.imageUrls[0] || 'https://placehold.co/800x1200.png');
+
+            // Fetch related products
+            const allProducts = await getProducts();
+            const related = allProducts
+              .filter(
+                (p) =>
+                  p.category === fetchedProduct.category &&
+                  p.id !== fetchedProduct.id &&
+                  p.status === 'Active'
+              )
+              .slice(0, 4); // Get up to 4 related products
+            setRelatedProducts(related);
+
           } else {
-            setProduct(null); // Product not found or not active
+            setProduct(null);
+            setRelatedProducts([]);
           }
         } catch (error) {
           console.error("Failed to fetch product data in ProductDetailPage:", error);
           setProduct(null);
+          setRelatedProducts([]);
         } finally {
           setIsLoading(false);
+          setIsLoadingRelated(false);
         }
       } else {
-        // This means params is null or params.id is not a string.
-        // This could happen if paramsPropInput was null, or a promise resolved to null outside of React.use's direct handling
         setProduct(null);
+        setRelatedProducts([]);
         setIsLoading(false);
+        setIsLoadingRelated(false);
       }
     };
 
-    // Only attempt to fetch if params are actually available.
-    // If params is null because useResolvedParams is waiting (suspending), this effect won't run with null params yet.
-    // If params resolves to a valid object, the effect runs.
-    // If params resolves to null or was initially null, fetchProductData will handle it.
     fetchProductData();
-
-  }, [params]); // The dependency is the resolved params object.
+  }, [params]);
 
   const handleThumbnailClick = (url: string) => {
     setSelectedImage(url);
@@ -85,7 +91,7 @@ export default function ProductDetailPage({ params: paramsPropInput }: { params:
     setQuantity(prev => Math.max(1, prev + change));
   };
 
-  if (isLoading && !product) { // Adjusted loading condition
+  if (isLoading && !product) {
     return (
       <div className="space-y-8">
         <Button variant="outline" size="sm" asChild className="mb-4">
@@ -135,7 +141,7 @@ export default function ProductDetailPage({ params: paramsPropInput }: { params:
             height={1200}
             className="w-full rounded-lg shadow-lg object-cover aspect-[2/3]"
             data-ai-hint={product.dataAiHint}
-            priority // Prioritize loading of the main product image
+            priority
           />
           {product.imageUrls.length > 1 && (
             <div className="mt-4 grid grid-cols-4 gap-2">
@@ -219,18 +225,42 @@ export default function ProductDetailPage({ params: paramsPropInput }: { params:
 
       <Separator className="my-12"/>
       <div>
-        <h2 className="font-headline text-2xl font-semibold mb-4">You Might Also Like</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => ( // Placeholder, replace with actual related products logic
-            <Card key={i}>
-              <Image src={`https://placehold.co/300x450.png?id=${i}`} alt="Related Product" width={300} height={450} className="rounded-t-lg object-cover" data-ai-hint="fashion clothing" />
-              <CardContent className="p-3">
-                <h3 className="font-medium text-sm">Related Item {i+1}</h3>
-                <p className="text-primary text-sm">GH₵ XX.XX</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <h2 className="font-headline text-2xl font-semibold mb-6">You Might Also Like</h2>
+        {isLoadingRelated ? (
+          <p>Loading related products...</p>
+        ) : relatedProducts.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {relatedProducts.map((relatedProduct) => (
+              <Card key={relatedProduct.id} className="overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300">
+                <CardHeader className="p-0">
+                  <Link href={`/products/${relatedProduct.id}`}>
+                    <Image
+                      src={relatedProduct.imageUrls[0] || 'https://placehold.co/600x800.png'}
+                      alt={relatedProduct.name}
+                      width={600}
+                      height={800}
+                      className="object-cover w-full h-80" // Adjusted height for consistency
+                      data-ai-hint={relatedProduct.dataAiHint}
+                    />
+                  </Link>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <CardTitle className="text-md font-medium mb-1 font-body">
+                    <Link href={`/products/${relatedProduct.id}`}>{relatedProduct.name}</Link>
+                  </CardTitle>
+                  <p className="text-primary font-semibold text-lg">GH₵ {relatedProduct.price.toFixed(2)}</p>
+                </CardContent>
+                <CardFooter className="p-4 pt-0">
+                  <Button asChild className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
+                    <Link href={`/products/${relatedProduct.id}`}>View Product</Link>
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <p className="text-muted-foreground">No related products found in this category.</p>
+        )}
       </div>
     </div>
   );
