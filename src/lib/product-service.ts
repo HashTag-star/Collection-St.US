@@ -5,6 +5,7 @@
 // For in-memory, this directive's impact is minimal here.
 
 import type { Product } from './types';
+import { revalidatePath } from 'next/cache';
 
 // Initial mock data, normalized
 let products: Product[] = [
@@ -59,6 +60,14 @@ export const addProduct = async (productData: NewProductData): Promise<Product> 
     reviews: undefined,
   };
   products.push(newProduct);
+
+  // Revalidate paths that display product lists
+  revalidatePath('/admin/products');
+  revalidatePath('/products');
+  revalidatePath('/'); // Homepage also lists featured products
+  // Revalidate specific product detail pages is harder with in-memory,
+  // but the main lists are more critical for this issue.
+
   return JSON.parse(JSON.stringify(newProduct));
 };
 
