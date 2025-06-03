@@ -52,14 +52,16 @@ export default function NewProductPage() {
         title: "Product Saved!",
         description: `${productName} has been added to the catalog (for this session).`,
       });
-      // Reset form or redirect
+      // Reset form
       setProductName('');
       setPrice('');
       setCategory('');
       setStock('');
       setDescription('');
       setProductImageUri(null);
-      // Consider redirecting to product list
+      
+      // Refresh the current route's data and then push to the product list
+      router.refresh(); 
       router.push('/admin/products');
     } catch (error) {
       console.error("Failed to add product:", error);
