@@ -25,14 +25,8 @@ function useResolvedParams(paramsProp: ParamsPropType): ResolvedParamsType | nul
   if (typeof (paramsProp as Promise<ResolvedParamsType>)?.then === 'function') {
     // If it's a Promise, use React.use() to resolve it.
     // React.use() will suspend the component until the Promise resolves.
-    try {
-      return React.use(paramsProp as Promise<ResolvedParamsType>);
-    } catch (error) {
-      // If React.use throws (e.g. promise rejected), handle it.
-      // For params, this might mean the route is invalid or data fetching failed upstream.
-      console.error("Error resolving params promise:", error);
-      return null;
-    }
+    // If the promise rejects, React.use() will throw, to be caught by an Error Boundary.
+    return React.use(paramsProp as Promise<ResolvedParamsType>);
   }
   // If it's not a Promise, return it as is (it should be ResolvedParamsType or null/undefined).
   return paramsProp as ResolvedParamsType;
@@ -69,7 +63,7 @@ export default function ProductDetailPage({ params: paramsPropInput }: { params:
         }
       } else {
         // This means params is null or params.id is not a string.
-        // This could happen if paramsPropInput was null, a promise resolved to null, or resolution failed.
+        // This could happen if paramsPropInput was null, or a promise resolved to null outside of React.use's direct handling
         setProduct(null);
         setIsLoading(false);
       }
