@@ -1,10 +1,7 @@
 
 'use server';
-// Though primarily used client-side for updates, marking as 'use server'
-// if any function were to be callable from Server Actions directly.
-// For in-memory, this directive's impact is minimal here.
 
-import type { Product } from './types';
+import type { Product, NewProductData, UpdateProductData } from './types';
 import { revalidatePath } from 'next/cache';
 
 // Initial mock data, normalized
@@ -19,26 +16,12 @@ let products: Product[] = [
 ];
 
 export const getProducts = async (): Promise<Product[]> => {
-  // Simulate API delay
-  // await new Promise(resolve => setTimeout(resolve, 50));
-  return JSON.parse(JSON.stringify(products)); // Return a deep copy
+  return JSON.parse(JSON.stringify(products));
 };
 
 export const getProductById = async (id: string): Promise<Product | undefined> => {
-  // Simulate API delay
-  // await new Promise(resolve => setTimeout(resolve, 50));
   const product = products.find(p => p.id === id);
   return product ? JSON.parse(JSON.stringify(product)) : undefined;
-};
-
-export type NewProductData = {
-  name: string;
-  price: number;
-  category: string;
-  stock: number;
-  description: string;
-  imageProductDataUri?: string; // data URI from file upload
-  dataAiHint: string;
 };
 
 export const addProduct = async (productData: NewProductData): Promise<Product> => {
@@ -49,28 +32,66 @@ export const addProduct = async (productData: NewProductData): Promise<Product> 
   const newProduct: Product = {
     id: newId,
     name: productData.name,
-    price: Number(productData.price), // Ensure price is a number
+    price: Number(productData.price),
     category: productData.category,
-    stock: Number(productData.stock), // Ensure stock is a number
+    stock: Number(productData.stock),
     description: productData.description,
     imageUrls: productData.imageProductDataUri ? [productData.imageProductDataUri] : [`https://placehold.co/600x800.png?text=${encodeURIComponent(productData.name)}`],
     dataAiHint: productData.dataAiHint || productData.name.toLowerCase().split(' ').slice(0,2).join(' '),
-    status: 'Active', // Default to active
-    rating: undefined, // Initialize optional fields
+    status: 'Active',
+    rating: undefined,
     reviews: undefined,
   };
   products.push(newProduct);
 
-  // Revalidate paths that display product lists
   revalidatePath('/admin/products');
   revalidatePath('/products');
-  revalidatePath('/'); // Homepage also lists featured products
-  // Revalidate specific product detail pages is harder with in-memory,
-  // but the main lists are more critical for this issue.
+  revalidatePath('/');
+  revalidatePath(`/products/${newId}`);
+
 
   return JSON.parse(JSON.stringify(newProduct));
 };
 
-// In a real backend, you would also have updateProduct and deleteProduct functions.
-// For this in-memory store, components will typically re-fetch the whole list or specific item
-// after an action (like add, or if edit/delete were implemented).
+export const updateProduct = async (id: string, updates: UpdateProductData): Promise<Product | undefined> => {
+  const productIndex = products.findIndex(p => p.id === id);
+  if (productIndex === -1) {
+    return undefined;
+  }
+
+  const originalProduct = products[productIndex];
+  const updatedProduct: Product = {
+    ...originalProduct,
+    ...updates,
+    price: updates.price !== undefined ? Number(updates.price) : originalProduct.price,
+    stock: updates.stock !== undefined ? Number(updates.stock) : originalProduct.stock,
+    // Ensure dataAiHint is updated if name changes and no explicit hint is provided
+    dataAiHint: updates.name ? updates.name.toLowerCase().split(' ').slice(0,2).join(' ') : originalProduct.dataAiHint,
+  };
+
+  products[productIndex] = updatedProduct;
+
+  revalidatePath('/admin/products');
+  revalidatePath('/products');
+  revalidatePath('/');
+  revalidatePath(`/products/${id}`);
+  revalidatePath(`/admin/products/${id}/edit`);
+
+
+  return JSON.parse(JSON.stringify(updatedProduct));
+};
+
+export const deleteProduct = async (id: string): Promise<boolean> => {
+  const productIndex = products.findIndex(p => p.id === id);
+  if (productIndex === -1) {
+    return false;
+  }
+  products.splice(productIndex, 1);
+
+  revalidatePath('/admin/products');
+  revalidatePath('/products');
+  revalidatePath('/');
+  revalidatePath(`/products/${id}`); // Invalidate the deleted product's detail page specifically
+
+  return true;
+};

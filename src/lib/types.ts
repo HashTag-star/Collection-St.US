@@ -35,3 +35,18 @@ export interface User {
 
 export type NewUserCredentials = Pick<User, 'fullName' | 'email' | 'password'>;
 export type LoginCredentials = Pick<User, 'email' | 'password'>;
+
+export type NewProductData = {
+  name: string;
+  price: number;
+  category: string;
+  stock: number;
+  description: string;
+  imageProductDataUri?: string; // data URI from file upload
+  dataAiHint: string;
+};
+
+export type UpdateProductData = Partial<Omit<Product, 'id' | 'imageUrls' | 'rating' | 'reviews' | 'dataAiHint'>> & {
+  // We are not allowing direct image URL updates via this type for simplicity in this step.
+  // dataAiHint will be derived from name if not provided or kept as is.
+};

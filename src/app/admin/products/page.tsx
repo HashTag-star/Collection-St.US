@@ -3,11 +3,13 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation'; // Import useRouter
+import React, { useEffect, useState } from 'react'; // Import React for JSX
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, MoreHorizontal, Edit, Trash2, Package } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Edit, Trash2, Package, Loader2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,13 +17,29 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useEffect, useState } from 'react';
-import { getProducts } from '@/lib/product-service';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { getProducts, deleteProduct } from '@/lib/product-service';
 import type { Product } from '@/lib/types';
+import { useToast } from "@/hooks/use-toast";
+
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const router = useRouter();
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -39,6 +57,29 @@ export default function AdminProductsPage() {
     return <Badge variant="destructive">Out of Stock</Badge>;
   };
 
+  const handleDeleteClick = (product: Product) => {
+    setProductToDelete(product);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!productToDelete) return;
+    setIsDeleting(true);
+    const success = await deleteProduct(productToDelete.id);
+    setIsDeleting(false);
+    setShowDeleteDialog(false);
+
+    if (success) {
+      toast({ title: "Product Deleted", description: `${productToDelete.name} has been removed.` });
+      setProducts(prevProducts => prevProducts.filter(p => p.id !== productToDelete.id));
+      router.refresh(); // Re-fetch data for the current route
+    } else {
+      toast({ title: "Error", description: "Could not delete product.", variant: "destructive" });
+    }
+    setProductToDelete(null);
+  };
+
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -52,11 +93,12 @@ export default function AdminProductsPage() {
         </div>
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle className="font-headline">Product Catalog</CardTitle>
+            <CardTitle className="font-headline">Product Catalog & Inventory</CardTitle>
             <CardDescription>Manage your products, view stock levels, and edit details.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <p>Loading products...</p>
+          <CardContent className="flex justify-center items-center py-10">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-2">Loading products...</p>
           </CardContent>
         </Card>
       </div>
@@ -138,13 +180,18 @@ export default function AdminProductsPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem>
-                            <Edit className="mr-2 h-3.5 w-3.5 text-muted-foreground/70" />
-                            Edit (Not Implemented)
+                          <DropdownMenuItem asChild>
+                            <Link href={`/admin/products/${product.id}/edit`}>
+                                <Edit className="mr-2 h-3.5 w-3.5 text-muted-foreground/70" />
+                                Edit
+                            </Link>
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                            <Trash2 className="mr-2 h-3.5 w-3.5 text-muted-foreground/70" />
-                            Delete (Not Implemented)
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                            onClick={() => handleDeleteClick(product)}
+                          >
+                            <Trash2 className="mr-2 h-3.5 w-3.5" />
+                            Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -156,7 +203,24 @@ export default function AdminProductsPage() {
           </CardContent>
         </Card>
       )}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the product
+              &quot;{productToDelete?.name}&quot; from your records.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setProductToDelete(null)} disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+              {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
-
