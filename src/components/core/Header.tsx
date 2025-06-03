@@ -1,16 +1,21 @@
+
+'use client';
+
 import Link from 'next/link';
-import { ShoppingCart, User, Search, Menu } from 'lucide-react';
+import { ShoppingCart, User, Search, Menu, LogOut } from 'lucide-react';
 import { Logo } from '@/components/core/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { useAuth } from '@/contexts/AuthContext';
+import React from 'react';
 
 export function Header() {
+  const { currentUser, logout, isLoadingAuth } = useAuth();
+
   const navItems = [
     { href: '/', label: 'Home' },
     { href: '/products', label: 'Products' },
-    // { href: '/categories', label: 'Categories' }, // Example for later
-    // { href: '/about', label: 'About Us' }, // Example for later
   ];
 
   return (
@@ -56,19 +61,25 @@ export function Header() {
                     {item.label}
                   </Link>
                 ))}
-                 <Link href="/admin/login" className="text-lg font-medium transition-colors hover:text-primary">Admin Login</Link>
+                <Link href="/admin/login" className="text-lg font-medium transition-colors hover:text-primary">Admin Login</Link>
+                 {currentUser ? (
+                  <>
+                    <Link href="/account/profile" className="text-lg font-medium transition-colors hover:text-primary">My Account</Link>
+                    <button onClick={logout} className="text-left text-lg font-medium transition-colors hover:text-destructive">Logout</button>
+                  </>
+                ) : (
+                  <Link href="/login" className="text-lg font-medium transition-colors hover:text-primary">Login/Sign Up</Link>
+                )}
               </nav>
             </SheetContent>
           </Sheet>
         </div>
         
-        {/* Mobile Logo (centered when menu is shown) */}
         <div className="flex flex-1 items-center justify-center md:hidden">
           <Link href="/" className="flex items-center">
             <Logo className="h-8 w-auto" />
           </Link>
         </div>
-
 
         <div className="flex flex-1 items-center justify-end space-x-2">
           <form className="hidden md:block ml-auto w-full max-w-xs">
@@ -83,12 +94,27 @@ export function Header() {
               <span className="sr-only">Shopping Cart</span>
             </Link>
           </Button>
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/login">
-              <User className="h-5 w-5" />
-              <span className="sr-only">Login / My Account</span>
-            </Link>
-          </Button>
+          
+          {isLoadingAuth ? (
+            <Button variant="ghost" size="icon" disabled>
+              <User className="h-5 w-5 animate-pulse" />
+            </Button>
+          ) : currentUser ? (
+            <Button variant="ghost" size="icon" asChild>
+              <Link href="/account/profile" title="My Account">
+                <User className="h-5 w-5" />
+                <span className="sr-only">My Account</span>
+              </Link>
+            </Button>
+          ) : (
+            <Button variant="ghost" size="icon" asChild>
+              <Link href="/login" title="Login / Sign Up">
+                <User className="h-5 w-5" />
+                <span className="sr-only">Login / Sign Up</span>
+              </Link>
+            </Button>
+          )}
+
           <div className="hidden md:block">
              <Button variant="outline" size="sm" asChild>
                 <Link href="/admin/login">Admin</Link>

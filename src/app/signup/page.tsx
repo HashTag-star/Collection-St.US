@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -6,12 +7,27 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/core/Logo';
+import React, { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 export default function SignupPage() {
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const { signup, isLoadingAuth } = useAuth();
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    // Handle signup logic here
-    console.log('Signup form submitted');
+    setError('');
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    await signup({ fullName, email, password });
   };
 
   return (
@@ -28,21 +44,54 @@ export default function SignupPage() {
           <form onSubmit={handleSubmit} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="fullName">Full Name</Label>
-              <Input id="fullName" type="text" placeholder="Festus Us" required />
+              <Input 
+                id="fullName" 
+                type="text" 
+                placeholder="Festus Us" 
+                required 
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                disabled={isLoadingAuth}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="m@example.com" required />
+              <Input 
+                id="email" 
+                type="email" 
+                placeholder="m@example.com" 
+                required 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoadingAuth}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" required />
+              <Input 
+                id="password" 
+                type="password" 
+                required 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoadingAuth}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input id="confirmPassword" type="password" required />
+              <Input 
+                id="confirmPassword" 
+                type="password" 
+                required 
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                disabled={isLoadingAuth}
+              />
             </div>
-            <Button type="submit" className="w-full mt-2">Sign Up</Button>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button type="submit" className="w-full mt-2" disabled={isLoadingAuth}>
+              {isLoadingAuth ? <Loader2 className="animate-spin" /> : 'Sign Up'}
+            </Button>
           </form>
         </CardContent>
         <CardFooter className="flex flex-col items-center">

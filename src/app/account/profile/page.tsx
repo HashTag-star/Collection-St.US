@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -5,19 +6,80 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useAuth } from '@/contexts/AuthContext';
+import React, { useState, useEffect } from 'react';
+import { updateUserProfile, updateUserPassword } from '@/lib/user-service'; // Assuming these exist
+import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from 'lucide-react';
 
 export default function ProfilePage() {
-  // Mock user data
-  const user = {
-    name: 'Festus Us',
-    email: 'festus@example.com',
-    avatarUrl: 'https://placehold.co/100x100.png', // Replace with actual avatar or remove
+  const { currentUser, setCurrentUser, isLoadingAuth } = useAuth();
+  const { toast } = useToast();
+
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState(''); // For potential avatar update
+  
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
+
+  useEffect(() => {
+    if (currentUser) {
+      setFullName(currentUser.fullName);
+      setEmail(currentUser.email);
+      setAvatarUrl(currentUser.avatarUrl || 'https://placehold.co/100x100.png');
+    }
+  }, [currentUser]);
+
+  const getInitials = (name: string = "") => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase();
+  }
+
+  const handleProfileUpdate = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!currentUser) return;
+    setIsUpdatingProfile(true);
+
+    const { user: updatedUser, error } = await updateUserProfile(currentUser.id, { fullName });
+    if (updatedUser) {
+      setCurrentUser(updatedUser); // Update context
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser)); // Update local storage
+      toast({ title: "Profile Updated", description: "Your personal information has been saved." });
+    } else {
+      toast({ title: "Update Failed", description: error || "Could not update profile.", variant: "destructive" });
+    }
+    setIsUpdatingProfile(false);
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handlePasswordUpdate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    console.log('Profile updated');
+    if (!currentUser) return;
+    if (newPassword !== confirmNewPassword) {
+      toast({ title: "Password Mismatch", description: "New passwords do not match.", variant: "destructive" });
+      return;
+    }
+    // In a real app, you would also send currentPassword for verification on the backend.
+    // For this mock, we'll skip that.
+    setIsUpdatingPassword(true);
+    const { success, error } = await updateUserPassword(currentUser.id, newPassword);
+    if (success) {
+        toast({ title: "Password Updated", description: "Your password has been changed successfully." });
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmNewPassword('');
+    } else {
+        toast({ title: "Update Failed", description: error || "Could not update password.", variant: "destructive" });
+    }
+    setIsUpdatingPassword(false);
   };
+
+  if (isLoadingAuth || !currentUser) {
+    return <div className="text-center py-10"><Loader2 className="mx-auto h-8 w-8 animate-spin" /> <p>Loading profile...</p></div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -27,28 +89,31 @@ export default function ProfilePage() {
           <CardTitle className="font-headline">Personal Information</CardTitle>
           <CardDescription>Update your personal details and email address.</CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleProfileUpdate}>
           <CardContent className="space-y-4">
             <div className="flex items-center space-x-4">
               <Avatar className="h-20 w-20">
-                <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="profile avatar" />
-                <AvatarFallback>{user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                <AvatarImage src={avatarUrl} alt={currentUser.fullName} data-ai-hint="profile avatar" />
+                <AvatarFallback>{getInitials(currentUser.fullName)}</AvatarFallback>
               </Avatar>
-              <Button type="button" variant="outline">Change Avatar</Button>
+              <Button type="button" variant="outline" disabled>Change Avatar (Soon)</Button>
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="grid gap-1.5">
                 <Label htmlFor="fullName">Full Name</Label>
-                <Input id="fullName" defaultValue={user.name} />
+                <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} disabled={isUpdatingProfile} />
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="email">Email Address</Label>
-                <Input id="email" type="email" defaultValue={user.email} />
+                <Input id="email" type="email" value={email} disabled />
+                 <p className="text-xs text-muted-foreground">Email cannot be changed.</p>
               </div>
             </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="ml-auto">Save Changes</Button>
+            <Button type="submit" className="ml-auto" disabled={isUpdatingProfile}>
+              {isUpdatingProfile ? <Loader2 className="animate-spin" /> : 'Save Changes'}
+            </Button>
           </CardFooter>
         </form>
       </Card>
@@ -58,23 +123,26 @@ export default function ProfilePage() {
           <CardTitle className="font-headline">Change Password</CardTitle>
           <CardDescription>Update your account password.</CardDescription>
         </CardHeader>
-        <form onSubmit={(e) => {e.preventDefault(); console.log("Password changed")}}>
+        <form onSubmit={handlePasswordUpdate}>
             <CardContent className="space-y-4">
                 <div className="grid gap-1.5">
-                    <Label htmlFor="currentPassword">Current Password</Label>
-                    <Input id="currentPassword" type="password" />
+                    <Label htmlFor="currentPassword">Current Password (Mock)</Label>
+                    <Input id="currentPassword" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} disabled={isUpdatingPassword}/>
+                    <p className="text-xs text-muted-foreground">In a real app, this would be verified.</p>
                 </div>
                 <div className="grid gap-1.5">
                     <Label htmlFor="newPassword">New Password</Label>
-                    <Input id="newPassword" type="password" />
+                    <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} disabled={isUpdatingPassword} />
                 </div>
                 <div className="grid gap-1.5">
                     <Label htmlFor="confirmNewPassword">Confirm New Password</Label>
-                    <Input id="confirmNewPassword" type="password" />
+                    <Input id="confirmNewPassword" type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} disabled={isUpdatingPassword}/>
                 </div>
             </CardContent>
             <CardFooter>
-                <Button type="submit" className="ml-auto">Update Password</Button>
+                <Button type="submit" className="ml-auto" disabled={isUpdatingPassword}>
+                    {isUpdatingPassword ? <Loader2 className="animate-spin" /> : 'Update Password'}
+                </Button>
             </CardFooter>
         </form>
       </Card>

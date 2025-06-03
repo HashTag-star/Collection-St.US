@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -6,12 +7,18 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/core/Logo';
+import React, { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const { login, isLoadingAuth } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    // Handle login logic here
-    console.log('Login form submitted');
+    await login({ email, password });
   };
 
   return (
@@ -28,13 +35,30 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="m@example.com" required />
+              <Input 
+                id="email" 
+                type="email" 
+                placeholder="m@example.com" 
+                required 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoadingAuth}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" required />
+              <Input 
+                id="password" 
+                type="password" 
+                required 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoadingAuth}
+              />
             </div>
-            <Button type="submit" className="w-full mt-2">Login</Button>
+            <Button type="submit" className="w-full mt-2" disabled={isLoadingAuth}>
+              {isLoadingAuth ? <Loader2 className="animate-spin" /> : 'Login'}
+            </Button>
           </form>
         </CardContent>
         <CardFooter className="flex flex-col items-center space-y-2">

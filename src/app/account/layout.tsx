@@ -1,12 +1,15 @@
+
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { User, ShoppingBag, Heart, MapPin, LogOut, Settings } from 'lucide-react';
 import { Header } from '@/components/core/Header';
 import { Footer } from '@/components/core/Footer';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
+import React, { useEffect } from 'react';
 
 const accountNavItems = [
   { href: '/account/profile', label: 'My Profile', icon: User },
@@ -22,6 +25,26 @@ export default function AccountLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { currentUser, isLoadingAuth, logout } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoadingAuth && !currentUser) {
+      router.push('/login?redirect=/account/profile');
+    }
+  }, [currentUser, isLoadingAuth, router]);
+
+  if (isLoadingAuth || !currentUser) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Header />
+        <main className="flex-grow container mx-auto py-8 text-center">
+          <p>Loading account information...</p>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -45,11 +68,13 @@ export default function AccountLayout({
                 </Button>
               ))}
               <Separator className="my-2" />
-              <Button variant="ghost" className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10" asChild>
-                 <Link href="/logout">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Logout
-                 </Link>
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={logout}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
               </Button>
             </nav>
           </aside>

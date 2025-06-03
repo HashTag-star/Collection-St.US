@@ -24,3 +24,14 @@ export interface CartItem {
   color?: string;
   dataAiHint?: string;
 }
+
+export interface User {
+  id: string;
+  fullName: string;
+  email: string;
+  password: string; // In a real app, this would be a hashed password
+  avatarUrl?: string;
+}
+
+export type NewUserCredentials = Pick<User, 'fullName' | 'email' | 'password'>;
+export type LoginCredentials = Pick<User, 'email' | 'password'>;
