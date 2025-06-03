@@ -6,7 +6,6 @@ import {
   Bell,
   Home,
   Package,
-  Package2,
   ShoppingCart,
   Users,
   LineChart,
@@ -14,7 +13,8 @@ import {
   LogOut,
   FileText,
   Palette,
-  Menu, // Added Menu import
+  Menu,
+  User, // Added User import
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
