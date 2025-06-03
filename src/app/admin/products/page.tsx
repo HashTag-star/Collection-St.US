@@ -35,7 +35,7 @@ export default function AdminProductsPage() {
 
   const formatStock = (stock: number) => {
     if (stock > 10) return <Badge variant="default">In Stock ({stock})</Badge>;
-    if (stock > 0) return <Badge variant="secondary">Low Stock ({stock})</Badge>;
+    if (stock > 0) return <Badge variant="secondary" className="bg-yellow-500 hover:bg-yellow-600 text-black">Low Stock ({stock})</Badge>;
     return <Badge variant="destructive">Out of Stock</Badge>;
   };
 
@@ -88,7 +88,7 @@ export default function AdminProductsPage() {
       ) : (
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle className="font-headline">Product Catalog</CardTitle>
+            <CardTitle className="font-headline">Product Catalog & Inventory</CardTitle>
             <CardDescription>Manage your products, view stock levels, and edit details.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -100,7 +100,7 @@ export default function AdminProductsPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead className="hidden md:table-cell">Price</TableHead>
-                  <TableHead className="hidden md:table-cell">Stock</TableHead>
+                  <TableHead>Stock</TableHead>
                   <TableHead>
                     <span className="sr-only">Actions</span>
                   </TableHead>
@@ -127,7 +127,7 @@ export default function AdminProductsPage() {
                     </TableCell>
                     <TableCell>{product.category}</TableCell>
                     <TableCell className="hidden md:table-cell">GH₵ {product.price.toFixed(2)}</TableCell>
-                    <TableCell className="hidden md:table-cell">{formatStock(product.stock)}</TableCell>
+                    <TableCell>{formatStock(product.stock)}</TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -159,3 +159,4 @@ export default function AdminProductsPage() {
     </div>
   );
 }
+
