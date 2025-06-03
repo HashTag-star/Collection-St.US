@@ -14,6 +14,7 @@ import {
   LogOut,
   FileText,
   Palette,
+  Menu, // Added Menu import
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
