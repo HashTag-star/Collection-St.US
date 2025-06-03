@@ -1,6 +1,12 @@
+
+'use client';
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, Users, CreditCard, Activity, Download, Package } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { getProducts } from '@/lib/product-service';
+import type { Product } from '@/lib/types';
 
 // Mock Data for stats
 const stats = [
@@ -11,13 +17,73 @@ const stats = [
 ];
 
 export default function AdminDashboardPage() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      setIsLoadingProducts(true);
+      try {
+        const fetchedProducts = await getProducts();
+        setProducts(fetchedProducts);
+      } catch (error) {
+        console.error("Failed to fetch products for export:", error);
+        // Optionally, show a toast message
+      }
+      setIsLoadingProducts(false);
+    };
+    fetchProducts();
+  }, []);
+
+  const convertToCSV = (data: Product[]): string => {
+    if (!data || data.length === 0) {
+      return '';
+    }
+    const headers = ['ID', 'Name', 'Price', 'Category', 'Stock', 'Status', 'Description', 'Image URLs', 'Rating', 'Reviews', 'Data AI Hint'];
+    const rows = data.map(product => [
+      product.id,
+      `"${product.name.replace(/"/g, '""')}"`, // Escape double quotes in name
+      product.price,
+      `"${product.category.replace(/"/g, '""')}"`,
+      product.stock,
+      product.status,
+      `"${product.description.replace(/"/g, '""')}"`, // Escape double quotes in description
+      `"${product.imageUrls.join(', ')}"`,
+      product.rating ?? '',
+      product.reviews ?? '',
+      `"${product.dataAiHint.replace(/"/g, '""')}"`
+    ].join(','));
+    return [headers.join(','), ...rows].join('\n');
+  };
+
+  const handleExportProductsCSV = () => {
+    if (products.length === 0) {
+      // Optionally, show a toast message that there's no data to export
+      console.log("No product data to export.");
+      return;
+    }
+    const csvData = convertToCSV(products);
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', 'product_inventory.csv');
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  };
+
   return (
     <>
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-headline font-semibold">Dashboard</h1>
-        <Button variant="outline">
+        <Button variant="outline" onClick={handleExportProductsCSV} disabled={isLoadingProducts || products.length === 0}>
           <Download className="mr-2 h-4 w-4" />
-          Export Statistics
+          {isLoadingProducts ? 'Loading Data...' : (products.length === 0 ? 'No Data to Export' : 'Export Product Inventory (CSV)')}
         </Button>
       </div>
       <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4 mt-6">
