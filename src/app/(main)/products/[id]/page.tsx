@@ -1,43 +1,87 @@
 
-'use client'; 
+'use client';
 
+import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card'; 
+import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Star, ShoppingCart, Plus, Minus, ChevronLeft } from 'lucide-react';
-import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
-import { useEffect, useState } from 'react';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { getProductById } from '@/lib/product-service';
 import type { Product } from '@/lib/types';
-import { Label } from '@/components/ui/label'; 
-import { Input } from '@/components/ui/input';
 
+// Define the expected type for resolved params
+type ResolvedParamsType = { id: string };
+// Define the prop type, which could be the resolved type or a Promise of it
+type ParamsPropType = ResolvedParamsType | Promise<ResolvedParamsType>;
 
-export default function ProductDetailPage({ params }: { params: { id: string } }) {
+// Custom hook to resolve params if they are a Promise
+function useResolvedParams(paramsProp: ParamsPropType): ResolvedParamsType | null {
+  // Check if paramsProp is a Promise by looking for a .then method
+  if (typeof (paramsProp as Promise<ResolvedParamsType>)?.then === 'function') {
+    // If it's a Promise, use React.use() to resolve it.
+    // React.use() will suspend the component until the Promise resolves.
+    try {
+      return React.use(paramsProp as Promise<ResolvedParamsType>);
+    } catch (error) {
+      // If React.use throws (e.g. promise rejected), handle it.
+      // For params, this might mean the route is invalid or data fetching failed upstream.
+      console.error("Error resolving params promise:", error);
+      return null;
+    }
+  }
+  // If it's not a Promise, return it as is (it should be ResolvedParamsType or null/undefined).
+  return paramsProp as ResolvedParamsType;
+}
+
+export default function ProductDetailPage({ params: paramsPropInput }: { params: ParamsPropType }) {
+  // Get the resolved params using the custom hook.
+  // This will suspend if paramsPropInput is a promise.
+  const params = useResolvedParams(paramsPropInput);
+
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
 
-
   useEffect(() => {
     const fetchProductData = async () => {
-      if (params.id) {
+      // params is now guaranteed to be the resolved object (or null if resolution failed/prop was null)
+      if (params && typeof params.id === 'string') {
         setIsLoading(true);
-        const fetchedProduct = await getProductById(params.id);
-        if (fetchedProduct && fetchedProduct.status === 'Active') {
-          setProduct(fetchedProduct);
-          setSelectedImage(fetchedProduct.imageUrls[0] || 'https://placehold.co/800x1200.png');
-        } else {
-          setProduct(null); // Product not found or not active
+        try {
+          const fetchedProduct = await getProductById(params.id);
+          if (fetchedProduct && fetchedProduct.status === 'Active') {
+            setProduct(fetchedProduct);
+            setSelectedImage(fetchedProduct.imageUrls[0] || 'https://placehold.co/800x1200.png');
+          } else {
+            setProduct(null); // Product not found or not active
+          }
+        } catch (error) {
+          console.error("Failed to fetch product data in ProductDetailPage:", error);
+          setProduct(null);
+        } finally {
+          setIsLoading(false);
         }
+      } else {
+        // This means params is null or params.id is not a string.
+        // This could happen if paramsPropInput was null, a promise resolved to null, or resolution failed.
+        setProduct(null);
         setIsLoading(false);
       }
     };
+
+    // Only attempt to fetch if params are actually available.
+    // If params is null because useResolvedParams is waiting (suspending), this effect won't run with null params yet.
+    // If params resolves to a valid object, the effect runs.
+    // If params resolves to null or was initially null, fetchProductData will handle it.
     fetchProductData();
-  }, [params.id]);
+
+  }, [params]); // The dependency is the resolved params object.
 
   const handleThumbnailClick = (url: string) => {
     setSelectedImage(url);
@@ -47,8 +91,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     setQuantity(prev => Math.max(1, prev + change));
   };
 
-
-  if (isLoading) {
+  if (isLoading && !product) { // Adjusted loading condition
     return (
       <div className="space-y-8">
         <Button variant="outline" size="sm" asChild className="mb-4">
@@ -76,10 +119,9 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
       </div>
     );
   }
-  
+
   const stockStatusText = product.stock > 10 ? 'In Stock' : product.stock > 0 ? 'Low Stock' : 'Out of Stock';
   const stockBadgeVariant = product.stock > 0 ? 'default' : 'destructive';
-
 
   return (
     <div className="space-y-8">
@@ -104,8 +146,8 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
           {product.imageUrls.length > 1 && (
             <div className="mt-4 grid grid-cols-4 gap-2">
               {product.imageUrls.slice(0,4).map((url, index) => (
-                <button 
-                  key={index} 
+                <button
+                  key={index}
                   className={`border rounded-md overflow-hidden focus:ring-2 focus:ring-primary ${selectedImage === url ? 'ring-2 ring-primary' : ''}`}
                   onClick={() => handleThumbnailClick(url)}
                 >
@@ -129,7 +171,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
             {stockStatusText} {product.stock > 0 ? `(${product.stock} left)`: ''}
           </Badge>
           <h1 className="font-headline text-4xl font-bold">{product.name}</h1>
-          
+
           {product.rating && product.reviews && (
             <div className="flex items-center space-x-2">
               <div className="flex items-center">
@@ -142,13 +184,13 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
           )}
 
           <p className="text-3xl font-semibold text-primary">GH₵ {product.price.toFixed(2)}</p>
-          
+
           <Separator />
 
           <p className="text-foreground/80 leading-relaxed">{product.description}</p>
-          
+
           <Separator />
-          
+
           <div className="flex items-center space-x-4">
             <Label htmlFor="quantity" className="text-sm font-medium">Quantity:</Label>
             <div className="flex items-center border rounded-md">
