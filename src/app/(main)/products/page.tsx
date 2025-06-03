@@ -1,3 +1,6 @@
+
+'use client';
+
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -5,18 +8,60 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Filter, ArrowUpDown } from 'lucide-react';
-
-// Mock data - replace with actual data fetching
-const products = [
-  { id: '1', name: 'Elegant Evening Gown', price: 'GH₵ 250.00', imageUrl: 'https://placehold.co/600x800.png', category: 'Dresses', dataAiHint: 'evening gown' },
-  { id: '2', name: 'Casual Summer Dress', price: 'GH₵ 120.00', imageUrl: 'https://placehold.co/600x800.png', category: 'Dresses', dataAiHint: 'summer dress' },
-  { id: '3', name: 'Chic Office Blouse', price: 'GH₵ 90.00', imageUrl: 'https://placehold.co/600x800.png', category: 'Tops', dataAiHint: 'office blouse' },
-  { id: '4', name: 'Silk Scarf Collection', price: 'GH₵ 75.00', imageUrl: 'https://placehold.co/600x800.png', category: 'Accessories', dataAiHint: 'silk scarf' },
-  { id: '5', name: 'Denim Jeans', price: 'GH₵ 180.00', imageUrl: 'https://placehold.co/600x800.png', category: 'Bottoms', dataAiHint: 'denim jeans' },
-  { id: '6', name: 'Leather Handbag', price: 'GH₵ 350.00', imageUrl: 'https://placehold.co/600x800.png', category: 'Accessories', dataAiHint: 'leather handbag' },
-];
+import { useEffect, useState } from 'react';
+import { getProducts } from '@/lib/product-service';
+import type { Product } from '@/lib/types';
 
 export default function ProductsPage() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [sortOption, setSortOption] = useState('featured');
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      setIsLoading(true);
+      const fetchedProducts = await getProducts();
+      setProducts(fetchedProducts.filter(p => p.status === 'Active')); // Only show active products
+      setIsLoading(false);
+    };
+    fetchProducts();
+  }, []);
+
+  const filteredAndSortedProducts = products
+    .filter(product => 
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+      (categoryFilter === 'all' || product.category.toLowerCase() === categoryFilter.toLowerCase())
+    )
+    .sort((a, b) => {
+      switch (sortOption) {
+        case 'price-asc':
+          return a.price - b.price;
+        case 'price-desc':
+          return b.price - a.price;
+        case 'newest': // Requires a date field, for now sort by ID desc as a proxy
+          return parseInt(b.id) - parseInt(a.id);
+        case 'featured':
+        default:
+          return 0; // No specific featured sort logic for now, could use rating or manual flag
+      }
+    });
+  
+  const uniqueCategories = ['all', ...new Set(products.map(p => p.category))];
+
+
+  if (isLoading) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="font-headline text-4xl font-semibold mb-2">Our Collection</h1>
+          <p className="text-muted-foreground">Loading products...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div>
@@ -24,26 +69,31 @@ export default function ProductsPage() {
         <p className="text-muted-foreground">Browse through our curated selection of fine clothing and accessories.</p>
       </div>
 
-      {/* Filters and Sort */}
       <div className="flex flex-col md:flex-row gap-4 items-center p-4 border rounded-lg bg-card shadow">
         <div className="flex-grow w-full md:w-auto">
-          <Input type="search" placeholder="Search products..." className="w-full" />
+          <Input 
+            type="search" 
+            placeholder="Search products..." 
+            className="w-full" 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
         <div className="flex gap-4 w-full md:w-auto">
-          <Select>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
             <SelectTrigger className="w-full md:w-[180px]">
               <Filter className="h-4 w-4 mr-2" />
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              <SelectItem value="dresses">Dresses</SelectItem>
-              <SelectItem value="tops">Tops</SelectItem>
-              <SelectItem value="bottoms">Bottoms</SelectItem>
-              <SelectItem value="accessories">Accessories</SelectItem>
+              {uniqueCategories.map(category => (
+                <SelectItem key={category} value={category}>
+                  {category === 'all' ? 'All Categories' : category}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
-          <Select>
+          <Select value={sortOption} onValueChange={setSortOption}>
             <SelectTrigger className="w-full md:w-[180px]">
               <ArrowUpDown className="h-4 w-4 mr-2" />
               <SelectValue placeholder="Sort by" />
@@ -58,14 +108,19 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Products Grid */}
+      {filteredAndSortedProducts.length === 0 && !isLoading && (
+        <div className="text-center py-10">
+          <p className="text-lg text-muted-foreground">No products match your criteria.</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {products.map((product) => (
+        {filteredAndSortedProducts.map((product) => (
           <Card key={product.id} className="overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300 flex flex-col">
             <CardHeader className="p-0">
               <Link href={`/products/${product.id}`}>
                 <Image
-                  src={product.imageUrl}
+                  src={product.imageUrls[0] || `https://placehold.co/600x800.png`}
                   alt={product.name}
                   width={600}
                   height={800}
@@ -79,7 +134,7 @@ export default function ProductsPage() {
               <CardTitle className="text-md font-medium mt-1 mb-1 font-body">
                 <Link href={`/products/${product.id}`}>{product.name}</Link>
               </CardTitle>
-              <p className="text-primary font-semibold text-lg">{product.price}</p>
+              <p className="text-primary font-semibold text-lg">GH₵ {product.price.toFixed(2)}</p>
             </CardContent>
             <CardFooter className="p-4 pt-0">
               <Button asChild className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
@@ -90,11 +145,11 @@ export default function ProductsPage() {
         ))}
       </div>
 
-      {/* Pagination (Placeholder) */}
-      <div className="flex justify-center mt-8">
-        <Button variant="outline" className="mr-2">Previous</Button>
-        <Button variant="outline">Next</Button>
-      </div>
+      {/* Basic Pagination (Placeholder - non-functional for now) */}
+      {/* <div className="flex justify-center mt-8">
+        <Button variant="outline" className="mr-2" disabled>Previous</Button>
+        <Button variant="outline" disabled>Next</Button>
+      </div> */}
     </div>
   );
 }

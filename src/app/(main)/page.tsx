@@ -1,15 +1,14 @@
+
+'use client';
+
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowRight } from 'lucide-react';
-
-// Mock data - replace with actual data fetching
-const featuredProducts = [
-  { id: '1', name: 'Elegant Evening Gown', price: 'GH₵ 250.00', imageUrl: 'https://placehold.co/600x800.png', dataAiHint: 'evening gown' },
-  { id: '2', name: 'Casual Summer Dress', price: 'GH₵ 120.00', imageUrl: 'https://placehold.co/600x800.png', dataAiHint: 'summer dress' },
-  { id: '3', name: 'Chic Office Blouse', price: 'GH₵ 90.00', imageUrl: 'https://placehold.co/600x800.png', dataAiHint: 'office blouse' },
-];
+import { useEffect, useState } from 'react';
+import { getProducts } from '@/lib/product-service';
+import type { Product } from '@/lib/types';
 
 const categories = [
   { id: '1', name: 'Dresses', imageUrl: 'https://placehold.co/400x300.png', dataAiHint: 'dress collection' },
@@ -18,9 +17,22 @@ const categories = [
 ];
 
 export default function HomePage() {
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchFeaturedProducts = async () => {
+      setIsLoading(true);
+      const allProducts = await getProducts();
+      // Select first 3 active products as featured, or implement more complex logic
+      setFeaturedProducts(allProducts.filter(p => p.status === 'Active').slice(0, 3));
+      setIsLoading(false);
+    };
+    fetchFeaturedProducts();
+  }, []);
+
   return (
     <div className="space-y-12">
-      {/* Hero Section */}
       <section className="bg-gradient-to-r from-primary/10 to-accent/10 dark:from-primary/20 dark:to-accent/20 rounded-lg p-8 md:p-16 text-center shadow-lg">
         <h1 className="font-headline text-4xl md:text-6xl font-bold text-primary mb-4">
           Discover Your Style
@@ -35,41 +47,45 @@ export default function HomePage() {
         </Button>
       </section>
 
-      {/* Featured Products Section */}
       <section>
         <h2 className="font-headline text-3xl font-semibold mb-6 text-center">Featured Products</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {featuredProducts.map((product) => (
-            <Card key={product.id} className="overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300">
-              <CardHeader className="p-0">
-                <Link href={`/products/${product.id}`}>
-                  <Image
-                    src={product.imageUrl}
-                    alt={product.name}
-                    width={600}
-                    height={800}
-                    className="object-cover w-full h-96"
-                    data-ai-hint={product.dataAiHint}
-                  />
-                </Link>
-              </CardHeader>
-              <CardContent className="p-4">
-                <CardTitle className="text-lg font-medium mb-1 font-body">
-                  <Link href={`/products/${product.id}`}>{product.name}</Link>
-                </CardTitle>
-                <p className="text-primary font-semibold">{product.price}</p>
-              </CardContent>
-              <CardFooter className="p-4 pt-0">
-                <Button asChild className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
-                  <Link href={`/products/${product.id}`}>View Product</Link>
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
+        {isLoading ? (
+          <p className="text-center">Loading featured products...</p>
+        ) : featuredProducts.length === 0 ? (
+          <p className="text-center text-muted-foreground">No featured products available at the moment.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {featuredProducts.map((product) => (
+              <Card key={product.id} className="overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300">
+                <CardHeader className="p-0">
+                  <Link href={`/products/${product.id}`}>
+                    <Image
+                      src={product.imageUrls[0] || 'https://placehold.co/600x800.png'}
+                      alt={product.name}
+                      width={600}
+                      height={800}
+                      className="object-cover w-full h-96"
+                      data-ai-hint={product.dataAiHint}
+                    />
+                  </Link>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <CardTitle className="text-lg font-medium mb-1 font-body">
+                    <Link href={`/products/${product.id}`}>{product.name}</Link>
+                  </CardTitle>
+                  <p className="text-primary font-semibold">GH₵ {product.price.toFixed(2)}</p>
+                </CardContent>
+                <CardFooter className="p-4 pt-0">
+                  <Button asChild className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
+                    <Link href={`/products/${product.id}`}>View Product</Link>
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
       </section>
 
-      {/* Categories Section */}
       <section>
         <h2 className="font-headline text-3xl font-semibold mb-6 text-center">Shop by Category</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -93,7 +109,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Call to Action Section */}
       <section className="bg-card border border-border rounded-lg p-8 text-center shadow-sm">
         <h2 className="font-headline text-2xl font-semibold mb-3">Join Our Community</h2>
         <p className="text-foreground/70 mb-6">
@@ -103,7 +118,7 @@ export default function HomePage() {
           <input
             type="email"
             placeholder="Enter your email"
-            className="flex-grow p-3 border border-input rounded-md focus:ring-2 focus:ring-primary outline-none"
+            className="flex-grow p-3 border border-input rounded-md focus:ring-2 focus:ring-primary outline-none bg-background"
             aria-label="Email for newsletter"
           />
           <Button type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground">Subscribe</Button>

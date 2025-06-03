@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -10,6 +11,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
+import { addProduct, type NewProductData } from '@/lib/product-service';
+import { useRouter } from 'next/navigation';
+
 
 export default function NewProductPage() {
   const [productName, setProductName] = useState('');
@@ -17,21 +21,54 @@ export default function NewProductPage() {
   const [category, setCategory] = useState('');
   const [stock, setStock] = useState('');
   const [description, setDescription] = useState('');
+  const [productImageUri, setProductImageUri] = useState<string | null>(null);
   const { toast } = useToast();
+  const router = useRouter();
 
   const handleDescriptionGenerated = (generatedDescription: string) => {
     setDescription(generatedDescription);
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleImageUploaded = (imageDataUri: string | null) => {
+    setProductImageUri(imageDataUri);
+  }
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    // Logic to save the new product
-    console.log({ productName, price, category, stock, description });
-    toast({
-      title: "Product Saved!",
-      description: `${productName} has been added to the catalog.`,
-    });
-    // Reset form or redirect
+    
+    const newProductData: NewProductData = {
+      name: productName,
+      price: parseFloat(price),
+      category,
+      stock: parseInt(stock, 10),
+      description,
+      imageProductDataUri: productImageUri || undefined,
+      dataAiHint: productName.toLowerCase().split(' ').slice(0,2).join(' ') || 'product',
+    };
+
+    try {
+      await addProduct(newProductData);
+      toast({
+        title: "Product Saved!",
+        description: `${productName} has been added to the catalog (for this session).`,
+      });
+      // Reset form or redirect
+      setProductName('');
+      setPrice('');
+      setCategory('');
+      setStock('');
+      setDescription('');
+      setProductImageUri(null);
+      // Consider redirecting to product list
+      router.push('/admin/products');
+    } catch (error) {
+      console.error("Failed to add product:", error);
+      toast({
+        title: "Error",
+        description: "Could not save the product. Please check console for details.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -74,6 +111,7 @@ export default function NewProductPage() {
                       value={price}
                       onChange={(e) => setPrice(e.target.value)}
                       placeholder="e.g., 150.00"
+                      step="0.01"
                       required
                     />
                   </div>
@@ -84,6 +122,7 @@ export default function NewProductPage() {
                       value={category}
                       onChange={(e) => setCategory(e.target.value)}
                       placeholder="e.g., Dresses"
+                      required
                     />
                   </div>
                 </div>
@@ -99,13 +138,14 @@ export default function NewProductPage() {
                     />
                   </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="description">Product Description</Label>
+                  <Label htmlFor="description">Product Description (AI can help below)</Label>
                   <Textarea
                     id="description"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Describe the product..."
                     rows={6}
+                    required
                   />
                 </div>
               </CardContent>
@@ -119,7 +159,10 @@ export default function NewProductPage() {
         </div>
 
         <div className="lg:col-span-1 space-y-6">
-          <ProductImageUploadForm onDescriptionGenerated={handleDescriptionGenerated} />
+          <ProductImageUploadForm 
+            onDescriptionGenerated={handleDescriptionGenerated} 
+            onImageUploaded={handleImageUploaded} 
+          />
         </div>
       </div>
     </div>
