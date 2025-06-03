@@ -26,7 +26,7 @@ export default function AccountLayout({
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      <div className="container flex-grow py-8">
+      <div className="container mx-auto flex-grow py-8">
         <div className="flex flex-col md:flex-row gap-8">
           <aside className="w-full md:w-1/4 lg:w-1/5">
             <h2 className="font-headline text-2xl font-semibold mb-4">My Account</h2>
