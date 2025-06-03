@@ -39,7 +39,7 @@ export default function AdminDashboardPage() {
     if (!data || data.length === 0) {
       return '';
     }
-    const headers = ['ID', 'Name', 'Price', 'Category', 'Stock', 'Status', 'Description', 'Image URLs', 'Rating', 'Reviews', 'Data AI Hint'];
+    const headers = ['ID', 'Name', 'Price', 'Category', 'Stock', 'Status', 'Description', 'Image URLs', 'Rating', 'Reviews', 'Data AI Hint', 'Sizes'];
     const rows = data.map(product => [
       product.id,
       `"${product.name.replace(/"/g, '""')}"`, // Escape double quotes in name
@@ -51,7 +51,8 @@ export default function AdminDashboardPage() {
       `"${product.imageUrls.join(', ')}"`,
       product.rating ?? '',
       product.reviews ?? '',
-      `"${product.dataAiHint.replace(/"/g, '""')}"`
+      `"${product.dataAiHint.replace(/"/g, '""')}"`,
+      `"${product.sizes?.join('; ') ?? ''}"` // Join sizes with semicolon, handle undefined
     ].join(','));
     return [headers.join(','), ...rows].join('\n');
   };

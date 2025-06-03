@@ -11,6 +11,7 @@ export interface Product {
   rating?: number;
   reviews?: number;
   dataAiHint: string;
+  sizes?: string[]; // Optional: Array of available sizes like ['S', 'M', 'L']
 }
 
 // Cart items might still use a simplified structure or be adapted later
@@ -44,9 +45,10 @@ export type NewProductData = {
   description: string;
   imageProductDataUri?: string; // data URI from file upload
   dataAiHint: string;
+  // Sizes are not managed via this form in this iteration
 };
 
-export type UpdateProductData = Partial<Omit<Product, 'id' | 'imageUrls' | 'rating' | 'reviews' | 'dataAiHint'>> & {
-  // We are not allowing direct image URL updates via this type for simplicity in this step.
+export type UpdateProductData = Partial<Omit<Product, 'id' | 'imageUrls' | 'rating' | 'reviews' | 'dataAiHint' | 'sizes'>> & {
+  // We are not allowing direct image URL or sizes updates via this type for simplicity in this step.
   // dataAiHint will be derived from name if not provided or kept as is.
 };
