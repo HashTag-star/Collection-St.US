@@ -1,4 +1,7 @@
 
+'use client'; // Add 'use client'
+
+import Link from 'next/link'; // Added Link
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { MoreHorizontal, UserPlus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast"; // Added useToast
 
 // Mock customer data
 const customers = [
@@ -15,13 +19,48 @@ const customers = [
   { id: 'CUST004', name: 'Kwame Mensah', email: 'kwame.mensah@example.com', joinDate: '2023-07-01', totalOrders: 1, totalSpent: 95.00, avatarUrl: 'https://placehold.co/40x40.png', dataAiHint: 'man face' },
 ];
 
+// Helper Icon (if not already globally available)
+function UsersIcon(props: React.SVGProps<SVGSVGElement>) { // Renamed to avoid conflict if Users from lucide is imported elsewhere
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  )
+}
+
+
 export default function AdminCustomersPage() {
+  const { toast } = useToast(); // Initialize toast
+
+  const handleNotImplemented = (feature: string) => {
+    toast({
+      title: "Coming Soon!",
+      description: `${feature} functionality is not yet implemented.`,
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="font-headline text-3xl font-semibold">Customers</h1>
-        <Button>
-          <UserPlus className="mr-2 h-4 w-4" /> Add New Customer
+        <Button asChild>
+          <Link href="/admin/customers/new">
+            <UserPlus className="mr-2 h-4 w-4" /> Add New Customer
+          </Link>
         </Button>
       </div>
 
@@ -72,9 +111,16 @@ export default function AdminCustomersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem>View Profile</DropdownMenuItem>
-                          <DropdownMenuItem>View Orders</DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                          <DropdownMenuItem asChild>
+                            <Link href={`/admin/customers/${customer.id}`}>View Profile</Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleNotImplemented(`Viewing orders for ${customer.name}`)}>
+                            View Orders
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                            onClick={() => handleNotImplemented(`Suspending account for ${customer.name}`)}
+                          >
                             Suspend Account
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -86,7 +132,7 @@ export default function AdminCustomersPage() {
             </Table>
           ) : (
             <div className="text-center py-12">
-              <Users className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+              <UsersIcon className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
               <h2 className="font-headline text-2xl font-semibold mb-2">No Customers Yet</h2>
               <p className="text-muted-foreground">Your customer list will appear here once they start signing up.</p>
             </div>
@@ -95,27 +141,4 @@ export default function AdminCustomersPage() {
       </Card>
     </div>
   );
-}
-
-// Helper Icon (if not already globally available)
-function Users(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  )
 }
