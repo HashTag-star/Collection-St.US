@@ -1,83 +1,140 @@
 
 'use server';
 
+import db from './db';
 import type { User, NewUserCredentials, LoginCredentials } from './types';
 
-let users: User[] = [
-    { id: '1', fullName: 'Festus Us', email: 'festus@example.com', password: 'password123', avatarUrl: 'https://placehold.co/100x100.png' },
-]; // Mock initial user for testing profile page
-
-let nextUserId = users.length > 0 ? Math.max(...users.map(u => parseInt(u.id))) + 1 : 1;
+// Helper to map DB row to User type, excluding password
+const mapRowToUser = (row: any): User | undefined => {
+  if (!row) return undefined;
+  const user: User = {
+    id: String(row.id), // Convert id to string
+    fullName: row.fullName,
+    email: row.email,
+    password: '', // Password should not be returned
+    avatarUrl: row.avatarUrl || undefined,
+  };
+  return user;
+};
 
 // IMPORTANT: This is a mock password check. DO NOT use in production.
-const MOCK_COMPARE_PASSWORDS = (submittedPassword: string, storedPassword: string) => {
-  return submittedPassword === storedPassword;
+const MOCK_COMPARE_PASSWORDS = (submittedPassword: string, storedPasswordHash: string) => {
+  // In a real app, 'storedPasswordHash' would be a hash, and you'd use a library like bcrypt to compare.
+  // For this prototype, we are storing plaintext passwords (bad practice).
+  return submittedPassword === storedPasswordHash;
 };
 
 export const signupUser = async (credentials: NewUserCredentials): Promise<{ user?: User; error?: string }> => {
-  if (users.find(user => user.email === credentials.email)) {
-    return { error: 'Email already exists.' };
+  try {
+    // Check if email already exists
+    const existingUserStmt = db.prepare('SELECT id FROM users WHERE email = ?');
+    const existingUser = existingUserStmt.get(credentials.email);
+    if (existingUser) {
+      return { error: 'Email already exists.' };
+    }
+
+    // In a real app, hash credentials.password before storing
+    const stmt = db.prepare(
+      'INSERT INTO users (fullName, email, password) VALUES (@fullName, @email, @password)'
+    );
+    const info = stmt.run({
+      fullName: credentials.fullName,
+      email: credentials.email,
+      password: credentials.password, // Storing plaintext for prototype simplicity
+    });
+
+    const newUserId = String(info.lastInsertRowid);
+    const newUser = await getUserById(newUserId); // Fetches user without password
+    return { user: newUser };
+
+  } catch (error: any) {
+    console.error('Signup user failed:', error);
+    // SQLite specific error for UNIQUE constraint
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        return { error: 'Email already exists.' };
+    }
+    return { error: 'Failed to create user account.' };
   }
-  const newUser: User = {
-    id: (nextUserId++).toString(),
-    fullName: credentials.fullName,
-    email: credentials.email,
-    password: credentials.password, // In real app, hash this password
-  };
-  users.push(newUser);
-  const userToReturn = { ...newUser };
-  // @ts-ignore
-  delete userToReturn.password; // Don't send password back
-  return { user: userToReturn };
 };
 
 export const loginUser = async (credentials: LoginCredentials): Promise<{ user?: User; error?: string }> => {
-  const user = users.find(u => u.email === credentials.email);
-  if (!user) {
-    return { error: 'Invalid email or password.' };
-  }
+  try {
+    const stmt = db.prepare('SELECT * FROM users WHERE email = ?');
+    const row = stmt.get(credentials.email) as any;
 
-  const passwordMatch = MOCK_COMPARE_PASSWORDS(credentials.password, user.password);
-  if (!passwordMatch) {
-    return { error: 'Invalid email or password.' };
+    if (!row) {
+      return { error: 'Invalid email or password.' };
+    }
+
+    // row.password is the stored (plaintext for now) password
+    const passwordMatch = MOCK_COMPARE_PASSWORDS(credentials.password, row.password);
+    if (!passwordMatch) {
+      return { error: 'Invalid email or password.' };
+    }
+
+    return { user: mapRowToUser(row) };
+  } catch (error) {
+    console.error('Login user failed:', error);
+    return { error: 'Login failed due to a server error.' };
   }
-  const userToReturn = { ...user };
-  // @ts-ignore
-  delete userToReturn.password; // Don't send password back
-  return { user: userToReturn };
 };
 
 export const getUserById = async (id: string): Promise<User | undefined> => {
-  const user = users.find(u => u.id === id);
-  if (user) {
-    const userToReturn = { ...user };
-    // @ts-ignore
-    delete userToReturn.password;
-    return userToReturn;
+  try {
+    const stmt = db.prepare('SELECT * FROM users WHERE id = ?');
+    const row = stmt.get(Number(id)) as any; // Use numeric ID for query
+    return mapRowToUser(row);
+  } catch (error) {
+    console.error(`Failed to get user by id ${id}:`, error);
+    return undefined;
   }
-  return undefined;
 };
 
-// Function to update user profile (basic example)
 export const updateUserProfile = async (userId: string, updates: Partial<Pick<User, 'fullName' | 'avatarUrl'>>): Promise<{ user?: User; error?: string }> => {
-  const userIndex = users.findIndex(u => u.id === userId);
-  if (userIndex === -1) {
-    return { error: 'User not found.' };
+  try {
+    const setClauses: string[] = [];
+    const params: any = { id: Number(userId) };
+
+    if (updates.fullName !== undefined) {
+      setClauses.push('fullName = @fullName');
+      params.fullName = updates.fullName;
+    }
+    if (updates.avatarUrl !== undefined) {
+      setClauses.push('avatarUrl = @avatarUrl');
+      params.avatarUrl = updates.avatarUrl;
+    }
+
+    if (setClauses.length === 0) {
+      return { user: await getUserById(userId) }; // No updates
+    }
+
+    const sql = `UPDATE users SET ${setClauses.join(', ')} WHERE id = @id`;
+    const stmt = db.prepare(sql);
+    const info = stmt.run(params);
+
+    if (info.changes > 0) {
+      return { user: await getUserById(userId) };
+    }
+    return { error: 'User not found or no changes made.' };
+
+  } catch (error) {
+    console.error(`Failed to update profile for user ${userId}:`, error);
+    return { error: 'Profile update failed.' };
   }
-  users[userIndex] = { ...users[userIndex], ...updates };
-  const updatedUser = { ...users[userIndex] };
-  // @ts-ignore
-  delete updatedUser.password;
-  return { user: updatedUser };
 };
 
-// Function to update user password (basic example)
 export const updateUserPassword = async (userId: string, newPassword: string): Promise<{ success?: boolean; error?: string }> => {
-    const userIndex = users.findIndex(u => u.id === userId);
-    if (userIndex === -1) {
-        return { error: 'User not found.' };
+  try {
+    // In a real app, you'd hash newPassword here
+    const stmt = db.prepare('UPDATE users SET password = ? WHERE id = ?');
+    const info = stmt.run(newPassword, Number(userId)); // Store new password (plaintext for proto)
+
+    if (info.changes > 0) {
+      return { success: true };
     }
-    // In a real app, you'd check the current password first
-    users[userIndex].password = newPassword; // Store new password (in real app, hash it)
-    return { success: true };
+    return { error: 'User not found or password not changed.' };
+  } catch (error) {
+    console.error(`Failed to update password for user ${userId}:`, error);
+    return { error: 'Password update failed.' };
+  }
 };
