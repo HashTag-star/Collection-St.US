@@ -5,9 +5,36 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft } from 'lucide-react';
+import React from 'react'; // Import React
+
+// Define the expected type for resolved params
+type ResolvedParamsType = { id: string };
+// Define the prop type, which could be the resolved type or a Promise of it
+type ParamsPropType = ResolvedParamsType | Promise<ResolvedParamsType>;
+
+// Custom hook to resolve params if they are a Promise
+function useResolvedParams(paramsProp: ParamsPropType): ResolvedParamsType | null {
+  // Check if paramsProp is a promise
+  if (typeof (paramsProp as Promise<ResolvedParamsType>)?.then === 'function') {
+    // If it's a promise, use React.use to unwrap it.
+    return React.use(paramsProp as Promise<ResolvedParamsType>);
+  }
+  // If it's not a promise, return it as is.
+  return paramsProp as ResolvedParamsType;
+}
 
 // In the App Router, params are passed as props to the page component
-export default function AdminOrderDetailPage({ params }: { params: { id: string } }) {
+export default function AdminOrderDetailPage({ params: paramsPropInput }: { params: ParamsPropType }) {
+  const params = useResolvedParams(paramsPropInput);
+
+  if (!params) {
+    // This case might occur if the promise is still resolving or if it resolved to null/undefined.
+    return (
+      <div className="flex justify-center items-center h-full">
+        <p>Loading order details...</p>
+      </div>
+    );
+  }
   const orderId = params.id;
 
   return (
