@@ -36,7 +36,9 @@ export const addProduct = async (productData: NewProductData): Promise<Product> 
     category: productData.category,
     stock: Number(productData.stock),
     description: productData.description,
-    imageUrls: productData.imageProductDataUri ? [productData.imageProductDataUri] : [`https://placehold.co/600x800.png?text=${encodeURIComponent(productData.name)}`],
+    imageUrls: (productData.imageProductDataUris && productData.imageProductDataUris.length > 0)
+      ? productData.imageProductDataUris
+      : [`https://placehold.co/600x800.png?text=${encodeURIComponent(productData.name)}`],
     dataAiHint: productData.dataAiHint || productData.name.toLowerCase().split(' ').slice(0,2).join(' '),
     status: 'Active',
     rating: undefined,
@@ -66,9 +68,7 @@ export const updateProduct = async (id: string, updates: UpdateProductData): Pro
     ...updates,
     price: updates.price !== undefined ? Number(updates.price) : originalProduct.price,
     stock: updates.stock !== undefined ? Number(updates.stock) : originalProduct.stock,
-    // Ensure dataAiHint is updated if name changes and no explicit hint is provided
     dataAiHint: updates.name ? updates.name.toLowerCase().split(' ').slice(0,2).join(' ') : originalProduct.dataAiHint,
-    // Sizes are not managed by this update function in this iteration
   };
 
   products[productIndex] = updatedProduct;
@@ -93,7 +93,7 @@ export const deleteProduct = async (id: string): Promise<boolean> => {
   revalidatePath('/admin/products');
   revalidatePath('/products');
   revalidatePath('/');
-  revalidatePath(`/products/${id}`); // Invalidate the deleted product's detail page specifically
+  revalidatePath(`/products/${id}`); 
 
   return true;
 };

@@ -43,7 +43,7 @@ export type NewProductData = {
   category: string;
   stock: number;
   description: string;
-  imageProductDataUri?: string; // data URI from file upload
+  imageProductDataUris?: string[]; // data URIs from file upload
   dataAiHint: string;
   // Sizes are not managed via this form in this iteration
 };
@@ -52,3 +52,4 @@ export type UpdateProductData = Partial<Omit<Product, 'id' | 'imageUrls' | 'rati
   // We are not allowing direct image URL or sizes updates via this type for simplicity in this step.
   // dataAiHint will be derived from name if not provided or kept as is.
 };
+

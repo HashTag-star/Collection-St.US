@@ -6,49 +6,75 @@ import { generateProductDescription } from '@/ai/flows/generate-product-descript
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-// Textarea removed as description is now in the main form
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, Sparkles, Image as ImageIcon } from 'lucide-react';
-import NextImage from 'next/image'; // Renamed to avoid conflict with Lucide icon
+import { Loader2, Sparkles, Image as ImageIcon, XCircle } from 'lucide-react';
+import NextImage from 'next/image';
 import { useToast } from "@/hooks/use-toast";
-
 
 export function ProductImageUploadForm({
   onDescriptionGenerated,
   onImageUploaded,
 }: {
   onDescriptionGenerated: (description: string) => void;
-  onImageUploaded: (imageDataUri: string | null) => void;
+  onImageUploaded: (imageDataUris: string[] | null) => void;
 }) {
-  const [productImage, setProductImage] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [productImages, setProductImages] = useState<string[]>([]);
+  const [fileNames, setFileNames] = useState<string[]>([]);
+  const [isLoadingDescription, setIsLoadingDescription] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setFileName(file.name);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        setProductImage(result);
-        onImageUploaded(result); // Pass image data URI to parent
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setProductImage(null);
-      onImageUploaded(null);
-      setFileName('');
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      const newImagePromises: Promise<string>[] = [];
+      const newFileNames: string[] = [];
+
+      Array.from(files).forEach(file => {
+        newFileNames.push(file.name);
+        newImagePromises.push(
+          new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              resolve(reader.result as string);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          })
+        );
+      });
+
+      Promise.all(newImagePromises)
+        .then(newImageDataUris => {
+          setProductImages(prevImages => [...prevImages, ...newImageDataUris]);
+          setFileNames(prevNames => [...prevNames, ...newFileNames]);
+          onImageUploaded([...productImages, ...newImageDataUris]);
+        })
+        .catch(err => {
+          console.error("Error reading files:", err);
+          setError("Could not load one or more images.");
+          toast({ title: "Image Load Error", description: "Failed to load some images.", variant: "destructive" });
+        });
+    }
+    // Reset file input to allow re-selecting the same file(s) if needed
+    if (event.target) {
+        event.target.value = '';
     }
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const removeImage = (indexToRemove: number) => {
+    const updatedImages = productImages.filter((_, index) => index !== indexToRemove);
+    const updatedFileNames = fileNames.filter((_, index) => index !== indexToRemove);
+    setProductImages(updatedImages);
+    setFileNames(updatedFileNames);
+    onImageUploaded(updatedImages.length > 0 ? updatedImages : null);
+  };
+
+  const handleGenerateDescription = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!productImage) {
-      setError('Please select an image file to generate a description.');
+    if (productImages.length === 0) {
+      setError('Please select at least one image to generate a description.');
       toast({
         title: "Image Required",
         description: "Please upload an image before generating a description.",
@@ -57,16 +83,16 @@ export function ProductImageUploadForm({
       return;
     }
 
-    setIsLoading(true);
+    setIsLoadingDescription(true);
     setError(null);
 
     try {
-      const result = await generateProductDescription({ productImage });
+      // Use the first image for description generation
+      const result = await generateProductDescription({ productImage: productImages[0] });
       onDescriptionGenerated(result.description);
       toast({
         title: "Description Generated!",
-        description: "AI has successfully crafted a product description.",
-        variant: "default",
+        description: "AI has successfully crafted a product description using the first image.",
       });
     } catch (err) {
       console.error('Error generating product description:', err);
@@ -77,7 +103,7 @@ export function ProductImageUploadForm({
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsLoadingDescription(false);
     }
   };
 
@@ -89,33 +115,49 @@ export function ProductImageUploadForm({
           AI Product Helper
         </CardTitle>
         <CardDescription>
-          Upload an image to auto-fill it in the form and let AI craft a description.
+          Upload one or more images. The first image will be used by AI to craft a description.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="productImageHelper" className="text-base">Product Image</Label>
-            <div className="flex items-center space-x-2">
-              <Input
-                id="productImageHelper" // Changed ID to avoid conflict if main form also has one
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="hidden"
-              />
-              <Button type="button" variant="outline" onClick={() => document.getElementById('productImageHelper')?.click()}>
-                <ImageIcon className="mr-2 h-4 w-4" />
-                {fileName || 'Choose Image'}
-              </Button>
-            </div>
-            {productImage && (
-              <div className="mt-4 border rounded-md p-2 inline-block bg-muted">
-                <NextImage src={productImage} alt="Product Preview" width={150} height={150} className="rounded-md object-cover" />
-              </div>
-            )}
+        <div className="space-y-2 mb-6">
+          <Label htmlFor="productImageHelper" className="text-base">Product Images</Label>
+          <div className="flex items-center space-x-2">
+            <Input
+              id="productImageHelper"
+              type="file"
+              accept="image/*"
+              multiple // Allow multiple file selection
+              onChange={handleImageChange}
+              className="hidden"
+            />
+            <Button type="button" variant="outline" onClick={() => document.getElementById('productImageHelper')?.click()}>
+              <ImageIcon className="mr-2 h-4 w-4" />
+              {productImages.length > 0 ? `${productImages.length} image(s) chosen` : 'Choose Image(s)'}
+            </Button>
           </div>
-
+          {productImages.length > 0 && (
+            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              {productImages.map((imageUri, index) => (
+                <div key={index} className="relative group border rounded-md p-1 bg-muted">
+                  <NextImage src={imageUri} alt={`Product Preview ${index + 1}`} width={100} height={100} className="rounded-md object-cover w-full aspect-square" />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => removeImage(index)}
+                  >
+                    <XCircle className="h-4 w-4" />
+                    <span className="sr-only">Remove image {index + 1}</span>
+                  </Button>
+                  <p className="text-xs text-muted-foreground truncate mt-1" title={fileNames[index]}>{fileNames[index]}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        <form onSubmit={handleGenerateDescription} className="space-y-6">
           {error && (
             <Alert variant="destructive">
               <AlertTitle>Error</AlertTitle>
@@ -123,8 +165,8 @@ export function ProductImageUploadForm({
             </Alert>
           )}
 
-          <Button type="submit" disabled={isLoading || !productImage} className="w-full sm:w-auto">
-            {isLoading ? (
+          <Button type="submit" disabled={isLoadingDescription || productImages.length === 0} className="w-full sm:w-auto">
+            {isLoadingDescription ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Generating Description...
@@ -132,7 +174,7 @@ export function ProductImageUploadForm({
             ) : (
               <>
                 <Sparkles className="mr-2 h-4 w-4" />
-                Generate Description
+                Generate Description (from 1st image)
               </>
             )}
           </Button>

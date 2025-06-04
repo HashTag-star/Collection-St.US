@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ProductImageUploadForm } from '@/components/products/ProductImageUploadForm';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
 import { addProduct, type NewProductData } from '@/lib/product-service';
@@ -21,7 +21,8 @@ export default function NewProductPage() {
   const [category, setCategory] = useState('');
   const [stock, setStock] = useState('');
   const [description, setDescription] = useState('');
-  const [productImageUri, setProductImageUri] = useState<string | null>(null);
+  const [productImageUris, setProductImageUris] = useState<string[] | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -29,12 +30,13 @@ export default function NewProductPage() {
     setDescription(generatedDescription);
   };
 
-  const handleImageUploaded = (imageDataUri: string | null) => {
-    setProductImageUri(imageDataUri);
+  const handleImageUploaded = (imageDataUris: string[] | null) => {
+    setProductImageUris(imageDataUris);
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setIsSaving(true);
     
     const newProductData: NewProductData = {
       name: productName,
@@ -42,7 +44,7 @@ export default function NewProductPage() {
       category,
       stock: parseInt(stock, 10),
       description,
-      imageProductDataUri: productImageUri || undefined,
+      imageProductDataUris: productImageUris || [],
       dataAiHint: productName.toLowerCase().split(' ').slice(0,2).join(' ') || 'product',
     };
 
@@ -50,7 +52,7 @@ export default function NewProductPage() {
       await addProduct(newProductData);
       toast({
         title: "Product Saved!",
-        description: `${productName} has been added to the catalog (for this session).`,
+        description: `${productName} has been added to the catalog.`,
       });
       // Reset form
       setProductName('');
@@ -58,9 +60,8 @@ export default function NewProductPage() {
       setCategory('');
       setStock('');
       setDescription('');
-      setProductImageUri(null);
+      setProductImageUris(null);
       
-      // Refresh the current route's data and then push to the product list
       router.refresh(); 
       router.push('/admin/products');
     } catch (error) {
@@ -70,6 +71,8 @@ export default function NewProductPage() {
         description: "Could not save the product. Please check console for details.",
         variant: "destructive",
       });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -102,6 +105,7 @@ export default function NewProductPage() {
                     onChange={(e) => setProductName(e.target.value)}
                     placeholder="e.g., Summer Breeze Dress"
                     required
+                    disabled={isSaving}
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -115,6 +119,7 @@ export default function NewProductPage() {
                       placeholder="e.g., 150.00"
                       step="0.01"
                       required
+                      disabled={isSaving}
                     />
                   </div>
                   <div className="grid gap-2">
@@ -125,6 +130,7 @@ export default function NewProductPage() {
                       onChange={(e) => setCategory(e.target.value)}
                       placeholder="e.g., Dresses"
                       required
+                      disabled={isSaving}
                     />
                   </div>
                 </div>
@@ -137,6 +143,7 @@ export default function NewProductPage() {
                       onChange={(e) => setStock(e.target.value)}
                       placeholder="e.g., 100"
                       required
+                      disabled={isSaving}
                     />
                   </div>
                 <div className="grid gap-2">
@@ -148,12 +155,14 @@ export default function NewProductPage() {
                     placeholder="Describe the product..."
                     rows={6}
                     required
+                    disabled={isSaving}
                   />
                 </div>
               </CardContent>
               <CardFooter>
-                <Button type="submit" className="ml-auto">
-                  <Save className="mr-2 h-4 w-4" /> Save Product
+                <Button type="submit" className="ml-auto" disabled={isSaving}>
+                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                   Save Product
                 </Button>
               </CardFooter>
             </Card>
