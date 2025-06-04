@@ -1,6 +1,4 @@
 
-'use server';
-
 import Database from 'better-sqlite3';
 import type { Product, User } from './types';
 
@@ -25,6 +23,27 @@ const initialUsersData: Omit<User, 'id'>[] = [
     { fullName: 'Festus Us', email: 'festus@example.com', password: 'password123', avatarUrl: 'https://placehold.co/100x100.png' },
 ];
 
+const initialStoreSettings: Record<string, string | boolean> = {
+  storeName: 'St.Us Collections',
+  storeEmail: 'support@stus.com',
+  storePhone: '+233 24 123 4567',
+  storeAddress: '123 Fashion Ave, Accra, Ghana',
+  momoNumber: '',
+  vodafoneCash: '',
+  enableCardPayments: false,
+  standardShippingRate: '15.00',
+  freeShippingThreshold: '',
+  localPickup: false,
+  pickupAddress: '',
+  adminNewOrder: true,
+  adminLowStock: false,
+  customerOrderConfirmation: true,
+  customerShippingUpdate: true,
+  customerOrderDelivered: false,
+  notificationEmail: 'admin@stus.com',
+};
+
+
 function initializeDatabase() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -48,6 +67,11 @@ function initializeDatabase() {
       reviews INTEGER,
       dataAiHint TEXT NOT NULL,
       sizes TEXT -- Stored as JSON string
+    );
+
+    CREATE TABLE IF NOT EXISTS store_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
     );
   `);
 
@@ -83,6 +107,18 @@ function initializeDatabase() {
       }
     })();
     console.log('Initial products seeded.');
+  }
+
+  // Seed initial store settings if settings table is empty
+  const settingsCount = db.prepare('SELECT COUNT(*) as count FROM store_settings').get() as { count: number };
+  if (settingsCount.count === 0) {
+    const insertSetting = db.prepare('INSERT INTO store_settings (key, value) VALUES (@key, @value)');
+    db.transaction(() => {
+      for (const [key, value] of Object.entries(initialStoreSettings)) {
+        insertSetting.run({ key, value: String(value) });
+      }
+    })();
+    console.log('Initial store settings seeded.');
   }
 }
 
