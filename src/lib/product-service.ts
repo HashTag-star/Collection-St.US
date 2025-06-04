@@ -97,3 +97,4 @@ export const deleteProduct = async (id: string): Promise<boolean> => {
 
   return true;
 };
+
