@@ -1,6 +1,6 @@
 
 import Database from 'better-sqlite3';
-import type { Product, User } from './types';
+import type { Product, User, Order, OrderItem, ShippingAddress } from './types';
 
 // In a production Firebase environment, you might need a writable path.
 // For local dev and some App Hosting setups, this might be fine.
@@ -21,7 +21,44 @@ const initialProductsData: Omit<Product, 'id'>[] = [
 
 const initialUsersData: Omit<User, 'id'>[] = [
     { fullName: 'Festus Us', email: 'festus@example.com', password: 'password123', avatarUrl: 'https://placehold.co/100x100.png' },
+    { fullName: 'Ama Serwaa', email: 'ama@example.com', password: 'password123', avatarUrl: 'https://placehold.co/100x100.png' },
 ];
+
+const festusUsShippingAddress: ShippingAddress = {
+  firstName: 'Festus',
+  lastName: 'Us',
+  address: '123 Main St',
+  city: 'Accra',
+  phone: '0241112222',
+};
+
+const amaSerwaaShippingAddress: ShippingAddress = {
+  firstName: 'Ama',
+  lastName: 'Serwaa',
+  address: '456 Side Rd',
+  city: 'Kumasi',
+  phone: '0243334444',
+};
+
+const initialOrdersData: Omit<Order, 'id' | 'items'>[] = [
+  { userId: '1', orderDate: '2024-05-01T10:00:00Z', totalAmount: 250.00, status: 'Delivered', paymentStatus: 'Paid', shippingAddress: festusUsShippingAddress, customerFullName: 'Festus Us', customerEmail: 'festus@example.com' },
+  { userId: '1', orderDate: '2024-05-10T11:30:00Z', totalAmount: 90.00, status: 'Shipped', paymentStatus: 'Paid', shippingAddress: festusUsShippingAddress, customerFullName: 'Festus Us', customerEmail: 'festus@example.com'},
+  { userId: '2', orderDate: '2024-05-15T14:15:00Z', totalAmount: 75.00, status: 'Processing', paymentStatus: 'Pending', shippingAddress: amaSerwaaShippingAddress, customerFullName: 'Ama Serwaa', customerEmail: 'ama@example.com' },
+  { userId: '1', orderDate: '2024-06-01T09:00:00Z', totalAmount: 180.00, status: 'Delivered', paymentStatus: 'Paid', shippingAddress: festusUsShippingAddress, customerFullName: 'Festus Us', customerEmail: 'festus@example.com' },
+];
+
+// Corresponds to orderId (1-based index from initialOrdersData)
+const initialOrderItemsData: Omit<OrderItem, 'id'>[] = [
+  // Order 1 (Festus Us - Elegant Evening Gown)
+  { orderId: '1', productId: '1', productName: 'Elegant Evening Gown', productImageUrl: initialProductsData[0].imageUrls[0], quantity: 1, priceAtPurchase: 250.00, size: 'M' },
+  // Order 2 (Festus Us - Chic Office Blouse)
+  { orderId: '2', productId: '3', productName: 'Chic Office Blouse', productImageUrl: initialProductsData[2].imageUrls[0], quantity: 1, priceAtPurchase: 90.00, size: 'L' },
+  // Order 3 (Ama Serwaa - Silk Scarf)
+  { orderId: '3', productId: '4', productName: 'Silk Scarf Collection', productImageUrl: initialProductsData[3].imageUrls[0], quantity: 1, priceAtPurchase: 75.00, size: undefined },
+  // Order 4 (Festus Us - Denim Jeans)
+  { orderId: '4', productId: '5', productName: 'Denim Jeans', productImageUrl: initialProductsData[4].imageUrls[0], quantity: 1, priceAtPurchase: 180.00, size: '32' },
+];
+
 
 const initialStoreSettings: Record<string, string | boolean> = {
   storeName: 'St.Us Collections',
@@ -73,6 +110,32 @@ function initializeDatabase() {
       key TEXT PRIMARY KEY,
       value TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId INTEGER NOT NULL, -- Changed from TEXT to INTEGER for foreign key
+        orderDate TEXT NOT NULL, -- ISO Date String
+        totalAmount REAL NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('Pending Payment', 'Processing', 'Shipped', 'Delivered', 'Cancelled')),
+        paymentStatus TEXT NOT NULL CHECK(paymentStatus IN ('Pending', 'Paid', 'Failed', 'Refunded')),
+        shippingAddress TEXT NOT NULL, -- JSON string
+        customerFullName TEXT, -- Denormalized for convenience
+        customerEmail TEXT, -- Denormalized for convenience
+        FOREIGN KEY (userId) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS order_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        orderId INTEGER NOT NULL, -- Changed from TEXT to INTEGER
+        productId INTEGER NOT NULL, -- Changed from TEXT to INTEGER
+        productName TEXT NOT NULL,
+        productImageUrl TEXT,
+        quantity INTEGER NOT NULL,
+        priceAtPurchase REAL NOT NULL,
+        size TEXT, -- Optional
+        FOREIGN KEY (orderId) REFERENCES orders(id),
+        FOREIGN KEY (productId) REFERENCES products(id)
+    );
   `);
 
   // Seed initial users if users table is empty
@@ -100,7 +163,7 @@ function initializeDatabase() {
         insertProduct.run({
           ...product,
           imageUrls: JSON.stringify(product.imageUrls || []),
-          sizes: product.sizes ? JSON.stringify(product.sizes) : null, // Store undefined sizes as NULL
+          sizes: product.sizes ? JSON.stringify(product.sizes) : null,
           rating: product.rating ?? null,
           reviews: product.reviews ?? null,
         });
@@ -120,9 +183,52 @@ function initializeDatabase() {
     })();
     console.log('Initial store settings seeded.');
   }
+
+  // Seed initial orders and order items if tables are empty
+  const orderCount = db.prepare('SELECT COUNT(*) as count FROM orders').get() as { count: number };
+  if (orderCount.count === 0) {
+    const insertOrder = db.prepare(
+      'INSERT INTO orders (userId, orderDate, totalAmount, status, paymentStatus, shippingAddress, customerFullName, customerEmail) VALUES (@userId, @orderDate, @totalAmount, @status, @paymentStatus, @shippingAddress, @customerFullName, @customerEmail)'
+    );
+    const insertOrderItem = db.prepare(
+      'INSERT INTO order_items (orderId, productId, productName, productImageUrl, quantity, priceAtPurchase, size) VALUES (@orderId, @productId, @productName, @productImageUrl, @quantity, @priceAtPurchase, @size)'
+    );
+
+    db.transaction(() => {
+      // Insert orders and get their IDs
+      const orderIds: number[] = [];
+      for (const order of initialOrdersData) {
+        const info = insertOrder.run({
+            ...order,
+            shippingAddress: JSON.stringify(order.shippingAddress) // Ensure address is stringified
+        });
+        orderIds.push(info.lastInsertRowid as number);
+      }
+
+      // Insert order items, mapping to the generated order IDs
+      for (const item of initialOrderItemsData) {
+        // Assuming item.orderId in mock data is a 1-based index corresponding to initialOrdersData
+        const mockOrderIdIndex = parseInt(item.orderId, 10) - 1;
+        if (mockOrderIdIndex >= 0 && mockOrderIdIndex < orderIds.length) {
+          const actualOrderId = orderIds[mockOrderIdIndex];
+          insertOrderItem.run({
+            ...item,
+            orderId: actualOrderId, // Use actual inserted order ID
+            // Ensure productId is an integer if your products.id is INTEGER
+            // If product IDs in mockOrderItemsData are already the auto-incremented ones, this is fine.
+            // If they refer to the index in initialProductsData, map them:
+            // productId: initialProductsData.findIndex(p => p.name === item.productName) + 1, // Example mapping
+            // For simplicity, assuming productId in mock refers to product ID in products table.
+          });
+        }
+      }
+    })();
+    console.log('Initial orders and order items seeded.');
+  }
 }
 
 // Ensure database is initialized when this module is first imported
 initializeDatabase();
 
 export default db;
+
