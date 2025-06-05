@@ -23,6 +23,7 @@ const initialUsersData: Omit<User, 'id'>[] = [
     { fullName: 'Festus Us', email: 'festus@example.com', password: 'password123', avatarUrl: 'https://placehold.co/100x100.png?text=FU', isAdmin: false },
     { fullName: 'Ama Serwaa', email: 'ama@example.com', password: 'password123', avatarUrl: 'https://placehold.co/100x100.png?text=AS', isAdmin: false },
     { fullName: 'Admin User', email: 'admin@stus.com', password: 'adminpassword', avatarUrl: 'https://placehold.co/100x100.png?text=AU', isAdmin: true },
+    { fullName: 'Admin Festus', email: 'adminfestus@com.example', password: 'admin123', avatarUrl: 'https://placehold.co/100x100.png?text=AF', isAdmin: true },
 ];
 
 const festusUsShippingAddress: ShippingAddress = {
@@ -205,26 +206,34 @@ function initializeDatabase() {
 
     db.transaction(() => {
       initialOrdersData.forEach((order, index) => {
+        // Find the user ID from the users table based on the email in the order data
         const actualUserId = userEmailToIdMap.get(order.customerEmail as string);
-        if (!actualUserId) {
-          console.warn(`Could not find user ID for email ${order.customerEmail} when seeding order. User ID in mock: ${order.userId}. Skipping order.`);
-          return;
-        }
 
+        if (!actualUserId) {
+          console.warn(`Could not find user ID for email ${order.customerEmail} when seeding order. Original mock userId was ${order.userId}. Skipping order.`);
+          return; // Skip this order if user not found
+        }
+        
         const info = insertOrder.run({
             ...order,
-            userId: actualUserId,
+            userId: actualUserId, // Use the actual user ID from the database
             shippingAddress: JSON.stringify(order.shippingAddress)
         });
-        orderIdMapping[`user${order.userId}-orderIndex${index}`] = info.lastInsertRowid as number;
+        // Key the mapping with something unique from the mock data if needed,
+        // or directly use the actual inserted order ID if the relation for items is direct.
+        // For this example, let's assume item mock data can be mapped via product name or index to orders.
+        // For simplicity, we'll map by index of initialOrdersData to map initialOrderItemsData.
+        orderIdMapping[`user${initialUsersData.findIndex(u => u.email === order.customerEmail)}-orderIndex${index}`] = info.lastInsertRowid as number;
+
       });
 
       initialOrderItemsData.forEach((item, idx) => {
+          // This mapping is fragile and depends on the order of initialUsersData and initialOrdersData
           let targetMockOrderKey: string | undefined;
-          if (idx === 0) targetMockOrderKey = `user1-orderIndex0`; 
-          else if (idx === 1) targetMockOrderKey = `user1-orderIndex1`; 
-          else if (idx === 2) targetMockOrderKey = `user2-orderIndex2`; 
-          else if (idx === 3) targetMockOrderKey = `user1-orderIndex3`; 
+          if (idx === 0) targetMockOrderKey = `user${initialUsersData.findIndex(u => u.email === initialOrdersData[0].customerEmail)}-orderIndex0`;
+          else if (idx === 1) targetMockOrderKey = `user${initialUsersData.findIndex(u => u.email === initialOrdersData[1].customerEmail)}-orderIndex1`;
+          else if (idx === 2) targetMockOrderKey = `user${initialUsersData.findIndex(u => u.email === initialOrdersData[2].customerEmail)}-orderIndex2`;
+          else if (idx === 3) targetMockOrderKey = `user${initialUsersData.findIndex(u => u.email === initialOrdersData[3].customerEmail)}-orderIndex3`;
 
 
           const actualOrderId = targetMockOrderKey ? orderIdMapping[targetMockOrderKey] : undefined;
