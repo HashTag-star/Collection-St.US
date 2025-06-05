@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -15,6 +16,7 @@ import {
   Palette,
   Menu,
   User, // Added User import
+  MailOpen, // Added MailOpen for subscribers
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -45,6 +47,7 @@ const navItems = [
   { href: '/admin/products', label: 'Products', icon: Package },
   { href: '/admin/products/new', label: 'Add Product (AI)', icon: Palette },
   { href: '/admin/customers', label: 'Customers', icon: Users },
+  { href: '/admin/subscribers', label: 'Subscribers', icon: MailOpen }, // New subscribers link
   { href: '/admin/analytics', label: 'Analytics', icon: LineChart },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
