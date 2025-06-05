@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, LineChart, PieChart, ShoppingBag, Users, TrendingUp, DollarSign, Activity, Loader2 } from "lucide-react";
+import { BarChart, LineChart, PieChart, ShoppingBag, Users, TrendingUp, DollarSign, Activity, Loader2, Package } from "lucide-react"; // Added Package
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from "@/hooks/use-toast";
 
