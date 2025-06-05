@@ -13,8 +13,6 @@ import { useRouter } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 
-const ADMIN_EMAIL = 'admin@stus.com';
-
 export default function AdminLoginPage() {
   const { login, logout, isLoadingAuth, currentUser } = useAuth();
   const router = useRouter();
@@ -25,12 +23,14 @@ export default function AdminLoginPage() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    // The login function in AuthContext now handles setting currentUser
+    // The useEffect below will handle redirection based on isAdmin status
     await login({ email, password });
   };
 
   React.useEffect(() => {
     if (!isLoadingAuth && currentUser) {
-      if (currentUser.email === ADMIN_EMAIL) {
+      if (currentUser.isAdmin) { // Check isAdmin flag
         toast({ title: 'Admin Login Successful', description: `Welcome, ${currentUser.fullName}!` });
         router.push('/admin/dashboard');
       } else {
@@ -39,9 +39,11 @@ export default function AdminLoginPage() {
           description: 'You are not authorized to access the admin panel.', 
           variant: 'destructive' 
         });
-        logout(); 
+        logout(); // Log out non-admin user
       }
     }
+    // If login fails (currentUser remains null and isLoadingAuth becomes false), 
+    // AuthContext's login function will have already shown a toast.
   }, [currentUser, isLoadingAuth, router, toast, logout]);
 
   const togglePasswordVisibility = () => setShowPassword(!showPassword);

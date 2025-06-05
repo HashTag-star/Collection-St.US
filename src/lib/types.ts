@@ -30,6 +30,7 @@ export interface User {
   email: string;
   password: string; // In a real app, this would be a hashed password
   avatarUrl?: string;
+  isAdmin?: boolean; // Added for admin privileges
 }
 
 export type NewUserCredentials = Pick<User, 'fullName' | 'email' | 'password'>;

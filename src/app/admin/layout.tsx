@@ -18,6 +18,7 @@ import {
   User, 
   MailOpen, 
   Loader2,
+  ShieldCheck, // Icon for User Management
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -41,14 +42,13 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Logo } from '@/components/core/Logo';
 import { useAuth } from '@/contexts/AuthContext';
 
-const ADMIN_EMAIL = 'admin@stus.com';
-
 const navItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: Home },
-  { href: '/admin/orders', label: 'Orders', icon: ShoppingCart, badge: 0 }, // Badge will be dynamic later
+  { href: '/admin/orders', label: 'Orders', icon: ShoppingCart, badge: 0 },
   { href: '/admin/products', label: 'Products', icon: Package },
   { href: '/admin/products/new', label: 'Add Product (AI)', icon: Palette },
   { href: '/admin/customers', label: 'Customers', icon: Users },
+  { href: '/admin/user-management', label: 'User Management', icon: ShieldCheck }, // New item
   { href: '/admin/subscribers', label: 'Subscribers', icon: MailOpen },
   { href: '/admin/analytics', label: 'Analytics', icon: LineChart },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
@@ -65,10 +65,13 @@ export default function AdminLayout({
 
   useEffect(() => {
     if (!isLoadingAuth) {
-      if (!currentUser || currentUser.email !== ADMIN_EMAIL) {
-        if (pathname !== '/admin/login') { // Avoid redirect loop if already on login page
-          router.push('/admin/login');
-        }
+      // Check if user is not admin or not logged in, and not on the login page
+      if ((!currentUser || !currentUser.isAdmin) && pathname !== '/admin/login') {
+        router.push('/admin/login');
+      }
+      // If user is admin and on the login page, redirect to dashboard
+      if (currentUser && currentUser.isAdmin && pathname === '/admin/login') {
+        router.push('/admin/dashboard');
       }
     }
   }, [currentUser, isLoadingAuth, router, pathname]);
@@ -81,36 +84,17 @@ export default function AdminLayout({
     );
   }
   
-  // If we are on the login page, or if the user is not an admin and trying to access non-login admin pages,
-  // we might want to render a minimal layout or just children (for login page)
-  // However, the effect above should handle redirection.
-  // If user is not admin and not loading, and tries to access admin page, they are redirected.
-  // If user *is* admin, this layout is shown.
-  // If current path is login page, and user is already admin, they should be redirected to dashboard.
-   useEffect(() => {
-    if (!isLoadingAuth && currentUser && currentUser.email === ADMIN_EMAIL && pathname === '/admin/login') {
-      router.push('/admin/dashboard');
-    }
-  }, [currentUser, isLoadingAuth, router, pathname]);
-
-
-  // Do not render full admin layout if user is not authenticated admin and not on login page
-  if (!isLoadingAuth && (!currentUser || currentUser.email !== ADMIN_EMAIL) && pathname !== '/admin/login') {
-    // This state should ideally be caught by the redirect effect,
-    // but as a fallback, prevent rendering the layout.
-    // Or, more simply, the redirect effect is primary.
-    // If on login page, children (login page) should render.
-    if (pathname === '/admin/login') {
-      return <>{children}</>;
-    }
-    return null; // Or a loading/access denied component, but redirect is cleaner
-  }
-  
-  // If on login page and not yet authenticated, just render children (login page)
-  if (pathname === '/admin/login' && (!currentUser || currentUser.email !== ADMIN_EMAIL)) {
+  if (pathname === '/admin/login') {
+      // For the login page itself, just render children without the full admin layout
+      // if user is not yet authenticated as admin. The effect above handles redirection if already admin.
       return <>{children}</>;
   }
 
+  // If after loading, still no admin user and not on login page, implies redirection is happening or should have.
+  // This check prevents rendering the layout for non-admin/non-logged-in users on protected pages.
+  if (!currentUser || !currentUser.isAdmin) {
+    return null; 
+  }
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
@@ -137,7 +121,7 @@ export default function AdminLayout({
                 >
                   <item.icon className="h-4 w-4" />
                   {item.label}
-                  {item.badge && item.badge > 0 && ( // Only show badge if count > 0
+                  {item.badge && item.badge > 0 && ( 
                     <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground">
                       {item.badge}
                     </Badge>
@@ -164,8 +148,8 @@ export default function AdminLayout({
               variant="ghost" 
               className="mt-4 w-full justify-start gap-3 rounded-lg px-3 py-2 text-sidebar-muted-foreground transition-all hover:text-sidebar-primary"
               onClick={() => {
-                logout(); // Ensure admin is logged out from AuthContext
-                router.push('/'); // Redirect to homepage or main login
+                logout(); 
+                router.push('/'); 
               }}
             >
                 <LogOut className="h-4 w-4" />
@@ -258,7 +242,7 @@ export default function AdminLayout({
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => {
                   logout();
-                  router.push('/admin/login'); // Redirect to admin login after admin logout
+                  router.push('/admin/login'); 
               }}>
                 Logout
               </DropdownMenuItem>
@@ -272,4 +256,3 @@ export default function AdminLayout({
     </div>
   );
 }
-    

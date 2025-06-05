@@ -20,9 +20,9 @@ const initialProductsData: Omit<Product, 'id'>[] = [
 ];
 
 const initialUsersData: Omit<User, 'id'>[] = [
-    { fullName: 'Festus Us', email: 'festus@example.com', password: 'password123', avatarUrl: 'https://placehold.co/100x100.png?text=FU' },
-    { fullName: 'Ama Serwaa', email: 'ama@example.com', password: 'password123', avatarUrl: 'https://placehold.co/100x100.png?text=AS' },
-    { fullName: 'Admin User', email: 'admin@stus.com', password: 'adminpassword', avatarUrl: 'https://placehold.co/100x100.png?text=AU' },
+    { fullName: 'Festus Us', email: 'festus@example.com', password: 'password123', avatarUrl: 'https://placehold.co/100x100.png?text=FU', isAdmin: false },
+    { fullName: 'Ama Serwaa', email: 'ama@example.com', password: 'password123', avatarUrl: 'https://placehold.co/100x100.png?text=AS', isAdmin: false },
+    { fullName: 'Admin User', email: 'admin@stus.com', password: 'adminpassword', avatarUrl: 'https://placehold.co/100x100.png?text=AU', isAdmin: true },
 ];
 
 const festusUsShippingAddress: ShippingAddress = {
@@ -48,15 +48,10 @@ const initialOrdersData: Omit<Order, 'id' | 'items'>[] = [
   { userId: '1', orderDate: '2024-06-01T09:00:00Z', totalAmount: 180.00, status: 'Delivered', paymentStatus: 'Paid', shippingAddress: festusUsShippingAddress, customerFullName: 'Festus Us', customerEmail: 'festus@example.com' },
 ];
 
-// Note: The `productName` here is used to look up actual product ID from the DB.
 const initialOrderItemsData: Omit<OrderItem, 'id' | 'productId' | 'orderId'>[] = [
-  // Order 1 (Festus Us - Elegant Evening Gown)
   { productName: 'Elegant Evening Gown', productImageUrl: initialProductsData[0].imageUrls[0], quantity: 1, priceAtPurchase: 250.00, size: 'M' },
-  // Order 2 (Festus Us - Chic Office Blouse)
   { productName: 'Chic Office Blouse', productImageUrl: initialProductsData[2].imageUrls[0], quantity: 1, priceAtPurchase: 90.00, size: 'L' },
-  // Order 3 (Ama Serwaa - Silk Scarf)
   { productName: 'Silk Scarf Collection', productImageUrl: initialProductsData[3].imageUrls[0], quantity: 1, priceAtPurchase: 75.00, size: undefined },
-  // Order 4 (Festus Us - Denim Jeans)
   { productName: 'Denim Jeans', productImageUrl: initialProductsData[4].imageUrls[0], quantity: 1, priceAtPurchase: 180.00, size: '32' },
 ];
 
@@ -88,8 +83,9 @@ function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       fullName TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
-      password TEXT NOT NULL, -- In a real app, this would be hashed
-      avatarUrl TEXT
+      password TEXT NOT NULL, 
+      avatarUrl TEXT,
+      isAdmin INTEGER DEFAULT 0 
     );
 
     CREATE TABLE IF NOT EXISTS products (
@@ -98,13 +94,13 @@ function initializeDatabase() {
       price REAL NOT NULL,
       description TEXT NOT NULL,
       category TEXT NOT NULL,
-      imageUrls TEXT, -- Stored as JSON string
+      imageUrls TEXT, 
       stock INTEGER NOT NULL,
       status TEXT NOT NULL CHECK(status IN ('Active', 'Draft')),
       rating REAL,
       reviews INTEGER,
       dataAiHint TEXT NOT NULL,
-      sizes TEXT -- Stored as JSON string
+      sizes TEXT 
     );
 
     CREATE TABLE IF NOT EXISTS store_settings (
@@ -148,13 +144,13 @@ function initializeDatabase() {
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
   if (userCount.count === 0) {
     const insertUser = db.prepare(
-      'INSERT INTO users (fullName, email, password, avatarUrl) VALUES (@fullName, @email, @password, @avatarUrl)'
+      'INSERT INTO users (fullName, email, password, avatarUrl, isAdmin) VALUES (@fullName, @email, @password, @avatarUrl, @isAdmin)'
     );
     db.transaction(() => {
       console.log('Seeding initial users:');
       for (const user of initialUsersData) {
-        insertUser.run(user);
-        console.log(`- Seeded: ${user.email}`);
+        insertUser.run({ ...user, isAdmin: user.isAdmin ? 1 : 0 });
+        console.log(`- Seeded: ${user.email} (Admin: ${user.isAdmin})`);
       }
     })();
     console.log('Initial users seeded.');
@@ -220,19 +216,15 @@ function initializeDatabase() {
             userId: actualUserId,
             shippingAddress: JSON.stringify(order.shippingAddress)
         });
-        // Create a unique key for mapping using the original mock user ID and the index in the mock array
         orderIdMapping[`user${order.userId}-orderIndex${index}`] = info.lastInsertRowid as number;
       });
 
       initialOrderItemsData.forEach((item, idx) => {
           let targetMockOrderKey: string | undefined;
-          // This mapping logic needs to be robust based on how mock items relate to mock orders.
-          // Assuming initialOrderItemsData[0] corresponds to initialOrdersData[0], etc.
-          // And that userId in initialOrdersData is '1' for Festus, '2' for Ama
-          if (idx === 0) targetMockOrderKey = `user1-orderIndex0`; // Festus' first order
-          else if (idx === 1) targetMockOrderKey = `user1-orderIndex1`; // Festus' second order
-          else if (idx === 2) targetMockOrderKey = `user2-orderIndex2`; // Ama's first order
-          else if (idx === 3) targetMockOrderKey = `user1-orderIndex3`; // Festus' third order (maps to initialOrdersData[3])
+          if (idx === 0) targetMockOrderKey = `user1-orderIndex0`; 
+          else if (idx === 1) targetMockOrderKey = `user1-orderIndex1`; 
+          else if (idx === 2) targetMockOrderKey = `user2-orderIndex2`; 
+          else if (idx === 3) targetMockOrderKey = `user1-orderIndex3`; 
 
 
           const actualOrderId = targetMockOrderKey ? orderIdMapping[targetMockOrderKey] : undefined;
@@ -260,4 +252,3 @@ function initializeDatabase() {
 initializeDatabase();
 
 export default db;
-    
