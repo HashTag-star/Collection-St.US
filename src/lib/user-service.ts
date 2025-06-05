@@ -108,19 +108,23 @@ export const getAllUsers = async (): Promise<User[]> => {
 export const updateUserProfile = async (userId: string, updates: Partial<Pick<User, 'fullName' | 'avatarUrl'>>): Promise<{ user?: User; error?: string }> => {
   try {
     const setClauses: string[] = [];
-    const params: any = { id: Number(userId) };
+    const params: Record<string, any> = { id: Number(userId) }; // Initialize params with id
 
     if (updates.fullName !== undefined) {
       setClauses.push('fullName = @fullName');
       params.fullName = updates.fullName;
     }
     if (updates.avatarUrl !== undefined) {
+      // For this prototype, avatarUrl is a data URI string.
+      // In production, this would be a URL to a stored image.
       setClauses.push('avatarUrl = @avatarUrl');
       params.avatarUrl = updates.avatarUrl;
     }
 
     if (setClauses.length === 0) {
-      return { user: await getUserById(userId) }; // No updates
+      // No actual data to update, return current user data
+      const currentUserData = await getUserById(userId);
+      return { user: currentUserData };
     }
 
     const sql = `UPDATE users SET ${setClauses.join(', ')} WHERE id = @id`;
@@ -128,7 +132,8 @@ export const updateUserProfile = async (userId: string, updates: Partial<Pick<Us
     const info = stmt.run(params);
 
     if (info.changes > 0) {
-      return { user: await getUserById(userId) };
+      const updatedUser = await getUserById(userId);
+      return { user: updatedUser };
     }
     return { error: 'User not found or no changes made.' };
 

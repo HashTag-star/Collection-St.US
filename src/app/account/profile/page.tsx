@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { updateUserProfile, updateUserPassword } from '@/lib/user-service';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from 'lucide-react';
@@ -18,19 +18,20 @@ export default function ProfilePage() {
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState('');
   
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
+  const [selectedAvatarFile, setSelectedAvatarFile] = useState<string | null>(null); // Store as data URI for preview
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (currentUser) {
       setFullName(currentUser.fullName);
       setEmail(currentUser.email);
-      setAvatarUrl(currentUser.avatarUrl || 'https://placehold.co/100x100.png');
+      setSelectedAvatarFile(null); // Clear any previous preview on user change
     }
   }, [currentUser]);
 
@@ -38,15 +39,45 @@ export default function ProfilePage() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase() || 'U';
   }
 
+  const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedAvatarFile(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleProfileUpdate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!currentUser) return;
     setIsUpdatingProfile(true);
 
-    const { user: updatedUser, error } = await updateUserProfile(currentUser.id, { fullName });
+    const updates: { fullName?: string; avatarUrl?: string } = {};
+    let changed = false;
+
+    if (fullName !== currentUser.fullName) {
+      updates.fullName = fullName;
+      changed = true;
+    }
+    if (selectedAvatarFile) {
+      updates.avatarUrl = selectedAvatarFile;
+      changed = true;
+    }
+
+    if (!changed) {
+      toast({ title: "No Changes", description: "No information was changed." });
+      setIsUpdatingProfile(false);
+      return;
+    }
+
+    const { user: updatedUser, error } = await updateUserProfile(currentUser.id, updates);
     if (updatedUser) {
-      setCurrentUser(updatedUser); // Update context
-      localStorage.setItem('currentUser', JSON.stringify(updatedUser)); // Update local storage
+      setCurrentUser(updatedUser); 
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser)); 
+      setSelectedAvatarFile(null); // Clear preview after successful save
       toast({ title: "Profile Updated", description: "Your personal information has been saved." });
     } else {
       toast({ title: "Update Failed", description: error || "Could not update profile.", variant: "destructive" });
@@ -81,23 +112,36 @@ export default function ProfilePage() {
     return <div className="text-center py-10"><Loader2 className="mx-auto h-8 w-8 animate-spin" /> <p>Loading profile...</p></div>;
   }
 
+  const currentAvatarSrc = selectedAvatarFile || currentUser.avatarUrl || 'https://placehold.co/100x100.png';
+  const canSaveChanges = fullName !== currentUser.fullName || !!selectedAvatarFile;
+
   return (
     <div className="space-y-6">
       <h1 className="font-headline text-3xl font-semibold">My Profile</h1>
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="font-headline">Personal Information</CardTitle>
-          <CardDescription>Update your personal details and email address.</CardDescription>
+          <CardDescription>Update your personal details and avatar.</CardDescription>
         </CardHeader>
         <form onSubmit={handleProfileUpdate}>
           <CardContent className="space-y-4">
             <div className="flex items-center space-x-4">
               <Avatar className="h-20 w-20">
-                <AvatarImage src={avatarUrl} alt={currentUser.fullName} data-ai-hint="profile avatar" />
+                <AvatarImage src={currentAvatarSrc} alt={currentUser.fullName} data-ai-hint="profile avatar" />
                 <AvatarFallback>{getInitials(currentUser.fullName)}</AvatarFallback>
               </Avatar>
-              <Button type="button" variant="outline" disabled>Change Avatar (Soon)</Button>
+              <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+                Change Avatar
+              </Button>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept="image/*" 
+                onChange={handleAvatarChange} 
+              />
             </div>
+            {selectedAvatarFile && <p className="text-xs text-muted-foreground">New avatar selected. Click &quot;Save Changes&quot; to apply.</p>}
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="grid gap-1.5">
                 <Label htmlFor="fullName">Full Name</Label>
@@ -111,7 +155,7 @@ export default function ProfilePage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="ml-auto" disabled={isUpdatingProfile || fullName === currentUser.fullName}>
+            <Button type="submit" className="ml-auto" disabled={isUpdatingProfile || !canSaveChanges}>
               {isUpdatingProfile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Save Changes'}
             </Button>
           </CardFooter>
@@ -141,6 +185,9 @@ export default function ProfilePage() {
             </CardFooter>
         </form>
       </Card>
+      <p className="text-xs text-muted-foreground text-center">
+        Note: For prototype purposes, uploaded avatars are stored as data URIs in the database. In a production app, they would be uploaded to a dedicated file storage service.
+      </p>
     </div>
   );
 }
