@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import React, { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { updateUserProfile, updateUserPassword } from '@/lib/user-service';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from 'lucide-react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 
 export default function ProfilePage() {
   const { currentUser, setCurrentUser, isLoadingAuth } = useAuth();
@@ -21,6 +21,9 @@ export default function ProfilePage() {
   
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
@@ -31,7 +34,7 @@ export default function ProfilePage() {
     if (currentUser) {
       setFullName(currentUser.fullName);
       setEmail(currentUser.email);
-      setSelectedAvatarFile(null); // Clear any previous preview on user change
+      setSelectedAvatarFile(null); 
     }
   }, [currentUser]);
 
@@ -77,7 +80,7 @@ export default function ProfilePage() {
     if (updatedUser) {
       setCurrentUser(updatedUser); 
       localStorage.setItem('currentUser', JSON.stringify(updatedUser)); 
-      setSelectedAvatarFile(null); // Clear preview after successful save
+      setSelectedAvatarFile(null); 
       toast({ title: "Profile Updated", description: "Your personal information has been saved." });
     } else {
       toast({ title: "Update Failed", description: error || "Could not update profile.", variant: "destructive" });
@@ -102,11 +105,16 @@ export default function ProfilePage() {
         toast({ title: "Password Updated", description: "Your password has been changed successfully." });
         setNewPassword('');
         setConfirmNewPassword('');
+        setShowNewPassword(false);
+        setShowConfirmNewPassword(false);
     } else {
         toast({ title: "Update Failed", description: error || "Could not update password.", variant: "destructive" });
     }
     setIsUpdatingPassword(false);
   };
+
+  const toggleShowNewPassword = () => setShowNewPassword(!showNewPassword);
+  const toggleShowConfirmNewPassword = () => setShowConfirmNewPassword(!showConfirmNewPassword);
 
   if (isLoadingAuth || !currentUser) {
     return <div className="text-center py-10"><Loader2 className="mx-auto h-8 w-8 animate-spin" /> <p>Loading profile...</p></div>;
@@ -171,11 +179,53 @@ export default function ProfilePage() {
             <CardContent className="space-y-4">
                 <div className="grid gap-1.5">
                     <Label htmlFor="newPassword">New Password</Label>
-                    <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} disabled={isUpdatingPassword} required />
+                    <div className="relative">
+                      <Input 
+                        id="newPassword" 
+                        type={showNewPassword ? "text" : "password"} 
+                        value={newPassword} 
+                        onChange={(e) => setNewPassword(e.target.value)} 
+                        disabled={isUpdatingPassword} 
+                        required 
+                        className="pr-10"
+                      />
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="icon" 
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
+                        onClick={toggleShowNewPassword}
+                        aria-label={showNewPassword ? "Hide new password" : "Show new password"}
+                        disabled={isUpdatingPassword}
+                      >
+                        {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
                 </div>
                 <div className="grid gap-1.5">
                     <Label htmlFor="confirmNewPassword">Confirm New Password</Label>
-                    <Input id="confirmNewPassword" type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} disabled={isUpdatingPassword} required />
+                    <div className="relative">
+                      <Input 
+                        id="confirmNewPassword" 
+                        type={showConfirmNewPassword ? "text" : "password"} 
+                        value={confirmNewPassword} 
+                        onChange={(e) => setConfirmNewPassword(e.target.value)} 
+                        disabled={isUpdatingPassword} 
+                        required 
+                        className="pr-10"
+                      />
+                       <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="icon" 
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
+                        onClick={toggleShowConfirmNewPassword}
+                        aria-label={showConfirmNewPassword ? "Hide confirm new password" : "Show confirm new password"}
+                        disabled={isUpdatingPassword}
+                      >
+                        {showConfirmNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
                 </div>
             </CardContent>
             <CardFooter>

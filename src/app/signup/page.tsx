@@ -9,9 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/core/Logo';
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShieldAlert, Eye, EyeOff } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ShieldAlert } from 'lucide-react';
 
 export default function SignupPage() {
   const { signup, isLoadingAuth } = useAuth();
@@ -19,6 +18,8 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formError, setFormError] = useState('');
   const [passwordStrengthErrors, setPasswordStrengthErrors] = useState<string[]>([]);
 
@@ -36,10 +37,6 @@ export default function SignupPage() {
     if (!/\d/.test(pass)) {
       errors.push('Password must contain at least one number.');
     }
-    // Optional: Add symbol requirement if needed
-    // if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/.test(pass)) {
-    //   errors.push('Password must contain at least one special character.');
-    // }
     return errors;
   };
 
@@ -53,11 +50,11 @@ export default function SignupPage() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError('');
-    setPasswordStrengthErrors([]);
+    // setPasswordStrengthErrors([]); // Already handled by handlePasswordChange
 
     const strengthErrors = validatePassword(password);
     if (strengthErrors.length > 0) {
-      setPasswordStrengthErrors(strengthErrors);
+      setPasswordStrengthErrors(strengthErrors); // Ensure it's set if user didn't blur/type
       setFormError('Please address the password requirements.');
       return;
     }
@@ -68,6 +65,9 @@ export default function SignupPage() {
     }
     await signup({ fullName, email, password });
   };
+
+  const toggleShowPassword = () => setShowPassword(!showPassword);
+  const toggleShowConfirmPassword = () => setShowConfirmPassword(!showConfirmPassword);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
@@ -107,15 +107,29 @@ export default function SignupPage() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                required
-                value={password}
-                onChange={handlePasswordChange}
-                disabled={isLoadingAuth}
-                aria-describedby="password-strength-errors"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={handlePasswordChange}
+                  disabled={isLoadingAuth}
+                  aria-describedby="password-strength-errors"
+                  className="pr-10"
+                />
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="icon" 
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
+                  onClick={toggleShowPassword}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  disabled={isLoadingAuth}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
               {passwordStrengthErrors.length > 0 && (
                 <div id="password-strength-errors" className="text-xs text-destructive mt-1 space-y-0.5">
                   {passwordStrengthErrors.map((err, index) => (
@@ -126,14 +140,28 @@ export default function SignupPage() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                disabled={isLoadingAuth}
-              />
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={isLoadingAuth}
+                  className="pr-10"
+                />
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="icon" 
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
+                  onClick={toggleShowConfirmPassword}
+                  aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                  disabled={isLoadingAuth}
+                >
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
             {formError && (
               <Alert variant="destructive">

@@ -11,7 +11,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from 'lucide-react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 
 const ADMIN_EMAIL = 'admin@stus.com';
 
@@ -21,22 +21,11 @@ export default function AdminLoginPage() {
   const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    
-    // Use the login function from AuthContext
-    // It will set currentUser if successful
     await login({ email, password });
-
-    // After login attempt, currentUser in AuthContext should be updated.
-    // We need a slight delay or a way to react to currentUser change.
-    // For now, let's check it directly, but this might have timing issues
-    // if `login` is fully async and doesn't update `currentUser` before this check.
-    // A more robust way would be to have `login` return the user or rely on useEffect.
-    
-    // The AuthContext's login function already handles toast for general login success/failure.
-    // We need to check if the logged-in user is the admin *after* AuthContext updates.
   };
 
   React.useEffect(() => {
@@ -45,17 +34,17 @@ export default function AdminLoginPage() {
         toast({ title: 'Admin Login Successful', description: `Welcome, ${currentUser.fullName}!` });
         router.push('/admin/dashboard');
       } else {
-        // Logged in as a regular user, not admin
         toast({ 
           title: 'Authorization Failed', 
           description: 'You are not authorized to access the admin panel.', 
           variant: 'destructive' 
         });
-        logout(); // Log out the non-admin user
+        logout(); 
       }
     }
   }, [currentUser, isLoadingAuth, router, toast, logout]);
 
+  const togglePasswordVisibility = () => setShowPassword(!showPassword);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
@@ -83,14 +72,28 @@ export default function AdminLoginPage() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
-              <Input 
-                id="password" 
-                type="password" 
-                required 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoadingAuth}
-              />
+              <div className="relative">
+                <Input 
+                  id="password" 
+                  type={showPassword ? "text" : "password"} 
+                  required 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoadingAuth}
+                  className="pr-10"
+                />
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="icon" 
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
+                  onClick={togglePasswordVisibility}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  disabled={isLoadingAuth}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
             <Button type="submit" className="w-full mt-2" disabled={isLoadingAuth}>
               {isLoadingAuth ? <Loader2 className="animate-spin" /> : 'Login to Dashboard'}
@@ -104,4 +107,3 @@ export default function AdminLoginPage() {
     </div>
   );
 }
-    
