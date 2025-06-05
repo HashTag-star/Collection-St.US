@@ -129,11 +129,8 @@ export default function AdminCustomersPage() {
                   <TableHead className="hidden sm:table-cell">Avatar</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
-                  {/* Mock data like joinDate, totalOrders, totalSpent are removed as they are not in User type yet */}
-                  <TableHead className="text-center">Status</TableHead> {/* Placeholder for status */}
-                  <TableHead>
-                    <span className="sr-only">Actions</span>
-                  </TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                  <TableHead><span className="sr-only">Actions</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
