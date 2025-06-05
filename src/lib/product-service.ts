@@ -53,12 +53,12 @@ export const addProduct = async (productData: NewProductData): Promise<Product> 
       : [`https://placehold.co/600x800.png?text=${encodeURIComponent(productData.name)}`]
   );
 
-  // dataAiHint logic from previous implementation
   const dataAiHint = productData.dataAiHint || productData.name.toLowerCase().split(' ').slice(0,2).join(' ');
+  const sizesString = productData.sizes ? JSON.stringify(productData.sizes) : null;
 
   try {
     const stmt = db.prepare(
-      'INSERT INTO products (name, price, category, stock, description, imageUrls, dataAiHint, status) VALUES (@name, @price, @category, @stock, @description, @imageUrls, @dataAiHint, @status)'
+      'INSERT INTO products (name, price, category, stock, description, imageUrls, dataAiHint, status, sizes) VALUES (@name, @price, @category, @stock, @description, @imageUrls, @dataAiHint, @status, @sizes)'
     );
     const info = stmt.run({
       name: productData.name,
@@ -69,7 +69,7 @@ export const addProduct = async (productData: NewProductData): Promise<Product> 
       imageUrls: imageUrlsString,
       dataAiHint: dataAiHint,
       status: 'Active', // New products default to Active
-      // sizes, rating, reviews are not part of NewProductData initially, will be NULL/undefined
+      sizes: sizesString,
     });
 
     const newProductId = String(info.lastInsertRowid);
@@ -78,8 +78,8 @@ export const addProduct = async (productData: NewProductData): Promise<Product> 
     revalidatePath('/products');
     revalidatePath('/');
     revalidatePath(`/products/${newProductId}`);
+    revalidatePath('/admin/dashboard'); // Revalidate dashboard for product counts
 
-    // Fetch the newly created product to return it
     const newProduct = await getProductById(newProductId);
     if (!newProduct) {
         throw new Error("Failed to retrieve newly added product");
@@ -88,8 +88,7 @@ export const addProduct = async (productData: NewProductData): Promise<Product> 
 
   } catch (error) {
     console.error('Failed to add product:', error);
-    // Consider how to propagate this error or if a specific return type for errors is needed
-    throw error; // Re-throw for now, can be handled by caller
+    throw error; 
   }
 };
 
@@ -100,18 +99,21 @@ export const updateProduct = async (id: string, updates: UpdateProductData): Pro
       return undefined;
     }
 
-    // Build the SET clause and parameters dynamically
     const setClauses: string[] = [];
-    const params: any = { id: Number(id) }; // Use numeric ID for query
+    const params: any = { id: Number(id) }; 
 
     Object.entries(updates).forEach(([key, value]) => {
-      if (value !== undefined) { // only include defined values in the update
-        setClauses.push(`${key} = @${key}`);
-        params[key] = value;
+      if (value !== undefined) { 
+        if (key === 'sizes') {
+          setClauses.push(`sizes = @sizes`);
+          params.sizes = value === null ? null : JSON.stringify(value);
+        } else {
+          setClauses.push(`${key} = @${key}`);
+          params[key] = value;
+        }
       }
     });
     
-    // Handle dataAiHint derivation if name is updated
     if (updates.name && updates.dataAiHint === undefined) {
         const newAiHint = updates.name.toLowerCase().split(' ').slice(0,2).join(' ');
         if (newAiHint !== currentProduct.dataAiHint) {
@@ -121,7 +123,6 @@ export const updateProduct = async (id: string, updates: UpdateProductData): Pro
              params.dataAiHint = newAiHint;
         }
     } else if (updates.dataAiHint) {
-        // If dataAiHint is explicitly provided in updates
         if (!setClauses.some(c => c.startsWith('dataAiHint'))) {
             setClauses.push('dataAiHint = @dataAiHint');
         }
@@ -130,7 +131,6 @@ export const updateProduct = async (id: string, updates: UpdateProductData): Pro
 
 
     if (setClauses.length === 0) {
-      // No actual updates to perform
       return currentProduct;
     }
 
@@ -143,6 +143,7 @@ export const updateProduct = async (id: string, updates: UpdateProductData): Pro
     revalidatePath('/');
     revalidatePath(`/products/${id}`);
     revalidatePath(`/admin/products/${id}/edit`);
+    revalidatePath('/admin/dashboard');
 
     return await getProductById(id);
   } catch (error) {
@@ -154,18 +155,47 @@ export const updateProduct = async (id: string, updates: UpdateProductData): Pro
 export const deleteProduct = async (id: string): Promise<boolean> => {
   try {
     const stmt = db.prepare('DELETE FROM products WHERE id = ?');
-    const info = stmt.run(Number(id)); // Use numeric ID for query
+    const info = stmt.run(Number(id)); 
 
     if (info.changes > 0) {
       revalidatePath('/admin/products');
       revalidatePath('/products');
       revalidatePath('/');
       revalidatePath(`/products/${id}`);
+      revalidatePath('/admin/dashboard');
       return true;
     }
-    return false; // No rows deleted
+    return false; 
   } catch (error) {
     console.error(`Failed to delete product ${id}:`, error);
     return false;
+  }
+};
+
+// For Admin Analytics
+export const getProductsGroupedByCategory = async (): Promise<Record<string, number>> => {
+  try {
+    const rows = db.prepare(
+      "SELECT category, COUNT(*) as count FROM products GROUP BY category"
+    ).all() as { category: string; count: number }[];
+    
+    const grouped: Record<string, number> = {};
+    rows.forEach(row => {
+      grouped[row.category] = row.count;
+    });
+    return grouped;
+  } catch (error) {
+    console.error('Failed to get products grouped by category:', error);
+    return {};
+  }
+};
+
+export const getTotalProductCount = async (): Promise<number> => {
+  try {
+    const result = db.prepare('SELECT COUNT(*) as count FROM products').get() as { count: number };
+    return result?.count || 0;
+  } catch (error) {
+    console.error('Failed to get total product count:', error);
+    return 0;
   }
 };

@@ -38,7 +38,7 @@ export const signupUser = async (credentials: NewUserCredentials): Promise<{ use
       'INSERT INTO users (fullName, email, password, avatarUrl) VALUES (@fullName, @email, @password, @avatarUrl)'
     );
     // For admin adding user, avatar can be a default placeholder or null
-    const defaultAvatar = 'https://placehold.co/100x100.png?text=User';
+    const defaultAvatar = `https://placehold.co/100x100.png?text=${credentials.fullName.split(' ').map(n=>n[0]).join('').toUpperCase()}`;
     const info = stmt.run({
       fullName: credentials.fullName,
       email: credentials.email,
@@ -166,5 +166,16 @@ export const deleteUserById = async (id: string): Promise<{ success?: boolean; e
   } catch (error) {
     console.error(`Failed to delete user ${id}:`, error);
     return { error: 'User deletion failed.' };
+  }
+};
+
+// For Admin Dashboard/Analytics
+export const getTotalUserCount = async (): Promise<number> => {
+  try {
+    const result = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
+    return result?.count || 0;
+  } catch (error) {
+    console.error('Failed to get total user count:', error);
+    return 0;
   }
 };

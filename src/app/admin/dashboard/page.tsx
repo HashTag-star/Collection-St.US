@@ -1,66 +1,139 @@
 
 'use client';
 
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, Users, CreditCard, Activity, Download, Package } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
+import { DollarSign, Users, CreditCard, Activity, Download, Package, ShoppingCart, Loader2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { getProducts } from '@/lib/product-service';
-import type { Product } from '@/lib/types';
+import { getTotalRevenue, getTotalOrderCount, getPendingOrderCount, getRecentOrders } from '@/lib/order-service';
+import { getTotalUserCount } from '@/lib/user-service';
+import type { Product, Order } from '@/lib/types';
+import { useToast } from "@/hooks/use-toast";
 
-// Mock Data for stats
-const stats = [
-  { title: 'Total Revenue', value: 'GH₵ 45,231.89', change: '+20.1% from last month', icon: DollarSign, dataAiHint: 'financial graph' },
-  { title: 'Total Sales', value: '+12,234', change: '+10.5% from last month', icon: CreditCard, dataAiHint: 'sales chart' },
-  { title: 'Active Customers', value: '+573', change: '+21 from last week', icon: Users, dataAiHint: 'customer demographics' },
-  { title: 'Pending Orders', value: '32', change: '5 new today', icon: Package, dataAiHint: 'order fulfillment' },
-];
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  change?: string;
+  icon: React.ElementType;
+  isLoading: boolean;
+  dataAiHint?: string;
+}
+
+const StatCard: React.FC<StatCardProps> = ({ title, value, change, icon: Icon, isLoading, dataAiHint }) => {
+  if (isLoading) {
+    return (
+      <Card className="shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <Skeleton className="h-5 w-2/3" />
+          <Skeleton className="h-5 w-5 rounded-full" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-8 w-1/2 mb-1" />
+          <Skeleton className="h-4 w-1/3" />
+        </CardContent>
+      </Card>
+    );
+  }
+  return (
+    <Card className="shadow-sm hover:shadow-md transition-shadow">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className="h-5 w-5 text-muted-foreground" data-ai-hint={dataAiHint}/>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{typeof value === 'number' && title.includes("Revenue") ? `GH₵ ${value.toFixed(2)}` : value}</div>
+        {change && <p className="text-xs text-muted-foreground">{change}</p>}
+      </CardContent>
+    </Card>
+  );
+};
 
 export default function AdminDashboardPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+  const [isLoadingRecentOrders, setIsLoadingRecentOrders] = useState(true);
+  
+  const [stats, setStats] = useState([
+    { title: 'Total Revenue', value: 0, icon: DollarSign, dataAiHint: 'financial graph' },
+    { title: 'Total Sales', value: 0, icon: ShoppingCart, dataAiHint: 'sales chart' }, // Changed icon
+    { title: 'Active Customers', value: 0, icon: Users, dataAiHint: 'customer demographics' },
+    { title: 'Pending Orders', value: 0, icon: Package, dataAiHint: 'order fulfillment' },
+  ]);
+
+  const { toast } = useToast();
 
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchDashboardData = async () => {
+      setIsLoadingStats(true);
+      setIsLoadingRecentOrders(true);
+      try {
+        const [revenue, totalOrders, totalUsers, pendingOrdersData, recentOrdersData] = await Promise.all([
+          getTotalRevenue(),
+          getTotalOrderCount(),
+          getTotalUserCount(),
+          getPendingOrderCount(),
+          getRecentOrders(5)
+        ]);
+        
+        setStats([
+          { title: 'Total Revenue', value: revenue, icon: DollarSign, dataAiHint: 'financial graph' },
+          { title: 'Total Sales', value: totalOrders, icon: ShoppingCart, dataAiHint: 'sales chart' },
+          { title: 'Active Customers', value: totalUsers, icon: Users, dataAiHint: 'customer demographics' },
+          { title: 'Pending Orders', value: pendingOrdersData, icon: Package, dataAiHint: 'order fulfillment' },
+        ]);
+        setRecentOrders(recentOrdersData);
+      } catch (error) {
+        console.error("Failed to fetch dashboard stats:", error);
+        toast({title: "Error", description: "Could not load dashboard data.", variant: "destructive"});
+      }
+      setIsLoadingStats(false);
+      setIsLoadingRecentOrders(false);
+    };
+
+    const fetchProductDataForExport = async () => {
       setIsLoadingProducts(true);
       try {
         const fetchedProducts = await getProducts();
         setProducts(fetchedProducts);
       } catch (error) {
         console.error("Failed to fetch products for export:", error);
-        // Optionally, show a toast message
+        toast({title: "Error", description: "Could not load product data for export.", variant: "destructive"});
       }
       setIsLoadingProducts(false);
     };
-    fetchProducts();
-  }, []);
+
+    fetchDashboardData();
+    fetchProductDataForExport();
+  }, [toast]);
 
   const convertToCSV = (data: Product[]): string => {
-    if (!data || data.length === 0) {
-      return '';
-    }
+    if (!data || data.length === 0) return '';
     const headers = ['ID', 'Name', 'Price', 'Category', 'Stock', 'Status', 'Description', 'Image URLs', 'Rating', 'Reviews', 'Data AI Hint', 'Sizes'];
     const rows = data.map(product => [
       product.id,
-      `"${product.name.replace(/"/g, '""')}"`, // Escape double quotes in name
+      `"${product.name.replace(/"/g, '""')}"`,
       product.price,
       `"${product.category.replace(/"/g, '""')}"`,
       product.stock,
       product.status,
-      `"${product.description.replace(/"/g, '""')}"`, // Escape double quotes in description
+      `"${product.description.replace(/"/g, '""')}"`,
       `"${product.imageUrls.join(', ')}"`,
       product.rating ?? '',
       product.reviews ?? '',
       `"${product.dataAiHint.replace(/"/g, '""')}"`,
-      `"${product.sizes?.join('; ') ?? ''}"` // Join sizes with semicolon, handle undefined
+      `"${product.sizes?.join('; ') ?? ''}"`
     ].join(','));
     return [headers.join(','), ...rows].join('\n');
   };
 
   const handleExportProductsCSV = () => {
-    if (products.length === 0) {
-      // Optionally, show a toast message that there's no data to export
-      console.log("No product data to export.");
+    if (isLoadingProducts || products.length === 0) {
+      toast({title: "Export Not Ready", description: isLoadingProducts ? "Product data is still loading." : "No product data to export.", variant: "destructive"});
       return;
     }
     const csvData = convertToCSV(products);
@@ -75,6 +148,7 @@ export default function AdminDashboardPage() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
+      toast({title: "Export Successful", description: "Product inventory CSV downloaded."});
     }
   };
 
@@ -89,16 +163,14 @@ export default function AdminDashboardPage() {
       </div>
       <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4 mt-6">
         {stats.map((stat) => (
-          <Card key={stat.title} className="shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-              <stat.icon className="h-5 w-5 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <p className="text-xs text-muted-foreground">{stat.change}</p>
-            </CardContent>
-          </Card>
+          <StatCard 
+            key={stat.title} 
+            title={stat.title} 
+            value={stat.value} 
+            icon={stat.icon} 
+            isLoading={isLoadingStats}
+            dataAiHint={stat.dataAiHint}
+          />
         ))}
       </div>
       <div className="grid gap-4 md:gap-8 lg:grid-cols-2 xl:grid-cols-3 mt-8">
@@ -108,10 +180,15 @@ export default function AdminDashboardPage() {
             <CardDescription>A summary of sales activity over the past month.</CardDescription>
           </CardHeader>
           <CardContent className="p-6">
-            {/* Placeholder for a chart */}
             <div className="h-[350px] w-full bg-muted rounded-md flex items-center justify-center">
-              <Activity className="h-16 w-16 text-muted-foreground" data-ai-hint="sales graph" />
-              <p className="ml-4 text-muted-foreground">Sales Chart Placeholder</p>
+              {isLoadingStats ? (
+                <Loader2 className="h-16 w-16 text-muted-foreground animate-spin" />
+              ) : (
+                <>
+                  <Activity className="h-16 w-16 text-muted-foreground" data-ai-hint="sales graph" />
+                  <p className="ml-4 text-muted-foreground">Sales Chart (Data loaded, component pending)</p>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -120,17 +197,35 @@ export default function AdminDashboardPage() {
             <CardTitle className="font-headline">Recent Orders</CardTitle>
             <CardDescription>Top 5 most recent orders.</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="flex items-center gap-4 p-2 rounded-md hover:bg-muted/50 transition-colors">
-                <div className="grid gap-1">
-                  <p className="text-sm font-medium leading-none">Order #{12345 - i}</p>
-                  <p className="text-sm text-muted-foreground">customer{i+1}@example.com</p>
+          <CardContent className="grid gap-1">
+            {isLoadingRecentOrders ? (
+              Array.from({length: 5}).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 p-3 rounded-md">
+                  <div className="grid gap-1.5 flex-grow">
+                    <Skeleton className="h-5 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </div>
+                  <Skeleton className="h-5 w-1/4" />
                 </div>
-                <div className="ml-auto font-medium">GH₵ {((i+1) * 27.50).toFixed(2)}</div>
-              </div>
-            ))}
-             <Button variant="outline" size="sm" className="mt-2">View All Orders</Button>
+              ))
+            ) : recentOrders.length > 0 ? (
+              recentOrders.map((order) => (
+                <Link key={order.id} href={`/admin/orders/${order.id}`} className="block">
+                  <div className="flex items-center gap-4 p-3 rounded-md hover:bg-muted/50 transition-colors">
+                    <div className="grid gap-0.5 flex-grow">
+                      <p className="text-sm font-medium leading-none">Order #{order.id}</p>
+                      <p className="text-sm text-muted-foreground">{order.customerFullName || order.customerEmail || 'N/A'}</p>
+                    </div>
+                    <div className="ml-auto font-medium">GH₵ {order.totalAmount.toFixed(2)}</div>
+                  </div>
+                </Link>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground p-3">No recent orders found.</p>
+            )}
+             <Button variant="outline" size="sm" className="mt-4 w-full" asChild>
+                <Link href="/admin/orders">View All Orders</Link>
+            </Button>
           </CardContent>
         </Card>
       </div>
