@@ -66,18 +66,20 @@ export const loginUser = async (credentials: LoginCredentials): Promise<{ user?:
     const row = stmt.get(credentials.email) as any;
 
     if (!row) {
+      console.log(`[AUTH DEBUG] Login attempt: User not found for email ${credentials.email}`);
       return { error: 'Invalid email or password.' };
     }
 
     // row.password is the stored (plaintext for now) password
     const passwordMatch = MOCK_COMPARE_PASSWORDS(credentials.password, row.password);
     if (!passwordMatch) {
+      console.log(`[AUTH DEBUG] Login attempt: Password mismatch for email ${credentials.email}. Submitted: '${credentials.password}', Stored in DB: '${row.password}'`);
       return { error: 'Invalid email or password.' };
     }
-
+    console.log(`[AUTH DEBUG] Login successful for email ${credentials.email}`);
     return { user: mapRowToUser(row) };
   } catch (error) {
-    console.error('Login user failed:', error);
+    console.error('[AUTH DEBUG] Login user failed with exception:', error);
     return { error: 'Login failed due to a server error.' };
   }
 };
@@ -184,3 +186,4 @@ export const getTotalUserCount = async (): Promise<number> => {
     return 0;
   }
 };
+
