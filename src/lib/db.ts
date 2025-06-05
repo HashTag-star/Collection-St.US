@@ -47,16 +47,16 @@ const initialOrdersData: Omit<Order, 'id' | 'items'>[] = [
   { userId: '1', orderDate: '2024-06-01T09:00:00Z', totalAmount: 180.00, status: 'Delivered', paymentStatus: 'Paid', shippingAddress: festusUsShippingAddress, customerFullName: 'Festus Us', customerEmail: 'festus@example.com' },
 ];
 
-// Corresponds to orderId (1-based index from initialOrdersData)
-const initialOrderItemsData: Omit<OrderItem, 'id'>[] = [
+// Note: The `productId` here is illustrative and will be replaced by looking up the actual ID from the DB by name.
+const initialOrderItemsData: Omit<OrderItem, 'id' | 'productId'>[] = [
   // Order 1 (Festus Us - Elegant Evening Gown)
-  { orderId: '1', productId: '1', productName: 'Elegant Evening Gown', productImageUrl: initialProductsData[0].imageUrls[0], quantity: 1, priceAtPurchase: 250.00, size: 'M' },
+  { orderId: '1', productName: 'Elegant Evening Gown', productImageUrl: initialProductsData[0].imageUrls[0], quantity: 1, priceAtPurchase: 250.00, size: 'M' },
   // Order 2 (Festus Us - Chic Office Blouse)
-  { orderId: '2', productId: '3', productName: 'Chic Office Blouse', productImageUrl: initialProductsData[2].imageUrls[0], quantity: 1, priceAtPurchase: 90.00, size: 'L' },
+  { orderId: '2', productName: 'Chic Office Blouse', productImageUrl: initialProductsData[2].imageUrls[0], quantity: 1, priceAtPurchase: 90.00, size: 'L' },
   // Order 3 (Ama Serwaa - Silk Scarf)
-  { orderId: '3', productId: '4', productName: 'Silk Scarf Collection', productImageUrl: initialProductsData[3].imageUrls[0], quantity: 1, priceAtPurchase: 75.00, size: undefined },
+  { orderId: '3', productName: 'Silk Scarf Collection', productImageUrl: initialProductsData[3].imageUrls[0], quantity: 1, priceAtPurchase: 75.00, size: undefined },
   // Order 4 (Festus Us - Denim Jeans)
-  { orderId: '4', productId: '5', productName: 'Denim Jeans', productImageUrl: initialProductsData[4].imageUrls[0], quantity: 1, priceAtPurchase: 180.00, size: '32' },
+  { orderId: '4', productName: 'Denim Jeans', productImageUrl: initialProductsData[4].imageUrls[0], quantity: 1, priceAtPurchase: 180.00, size: '32' },
 ];
 
 
@@ -194,6 +194,10 @@ function initializeDatabase() {
       'INSERT INTO order_items (orderId, productId, productName, productImageUrl, quantity, priceAtPurchase, size) VALUES (@orderId, @productId, @productName, @productImageUrl, @quantity, @priceAtPurchase, @size)'
     );
 
+    // Fetch all products from DB to map names to actual IDs
+    const allProductsFromDB = db.prepare('SELECT id, name FROM products').all() as { id: number; name: string }[];
+    const productMapByName = new Map(allProductsFromDB.map(p => [p.name, p.id]));
+
     db.transaction(() => {
       // Insert orders and get their IDs
       const orderIds: number[] = [];
@@ -205,21 +209,25 @@ function initializeDatabase() {
         orderIds.push(info.lastInsertRowid as number);
       }
 
-      // Insert order items, mapping to the generated order IDs
+      // Insert order items, mapping to the generated order IDs and looking up product IDs
       for (const item of initialOrderItemsData) {
         // Assuming item.orderId in mock data is a 1-based index corresponding to initialOrdersData
         const mockOrderIdIndex = parseInt(item.orderId, 10) - 1;
-        if (mockOrderIdIndex >= 0 && mockOrderIdIndex < orderIds.length) {
+        const actualProductId = productMapByName.get(item.productName);
+
+        if (mockOrderIdIndex >= 0 && mockOrderIdIndex < orderIds.length && actualProductId !== undefined) {
           const actualOrderId = orderIds[mockOrderIdIndex];
           insertOrderItem.run({
-            ...item,
-            orderId: actualOrderId, // Use actual inserted order ID
-            // Ensure productId is an integer if your products.id is INTEGER
-            // If product IDs in mockOrderItemsData are already the auto-incremented ones, this is fine.
-            // If they refer to the index in initialProductsData, map them:
-            // productId: initialProductsData.findIndex(p => p.name === item.productName) + 1, // Example mapping
-            // For simplicity, assuming productId in mock refers to product ID in products table.
+            orderId: actualOrderId,
+            productId: actualProductId, // Use looked-up product ID
+            productName: item.productName,
+            productImageUrl: item.productImageUrl,
+            quantity: item.quantity,
+            priceAtPurchase: item.priceAtPurchase,
+            size: item.size || null, // Ensure size is null if undefined
           });
+        } else {
+          console.warn(`Could not seed order item for product "${item.productName}" or order index ${item.orderId}. Product ID found: ${actualProductId}`);
         }
       }
     })();
@@ -231,4 +239,3 @@ function initializeDatabase() {
 initializeDatabase();
 
 export default db;
-
