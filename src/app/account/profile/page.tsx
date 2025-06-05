@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import React, { useState, useEffect } from 'react';
-import { updateUserProfile, updateUserPassword } from '@/lib/user-service'; // Assuming these exist
+import { updateUserProfile, updateUserPassword } from '@/lib/user-service';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from 'lucide-react';
 
@@ -18,9 +18,8 @@ export default function ProfilePage() {
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState(''); // For potential avatar update
+  const [avatarUrl, setAvatarUrl] = useState('');
   
-  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
@@ -36,7 +35,7 @@ export default function ProfilePage() {
   }, [currentUser]);
 
   const getInitials = (name: string = "") => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
+    return name.split(' ').map(n => n[0]).join('').toUpperCase() || 'U';
   }
 
   const handleProfileUpdate = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -62,13 +61,14 @@ export default function ProfilePage() {
       toast({ title: "Password Mismatch", description: "New passwords do not match.", variant: "destructive" });
       return;
     }
-    // In a real app, you would also send currentPassword for verification on the backend.
-    // For this mock, we'll skip that.
+    if (!newPassword) {
+      toast({ title: "Password Required", description: "New password cannot be empty.", variant: "destructive" });
+      return;
+    }
     setIsUpdatingPassword(true);
     const { success, error } = await updateUserPassword(currentUser.id, newPassword);
     if (success) {
         toast({ title: "Password Updated", description: "Your password has been changed successfully." });
-        setCurrentPassword('');
         setNewPassword('');
         setConfirmNewPassword('');
     } else {
@@ -111,8 +111,8 @@ export default function ProfilePage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="ml-auto" disabled={isUpdatingProfile}>
-              {isUpdatingProfile ? <Loader2 className="animate-spin" /> : 'Save Changes'}
+            <Button type="submit" className="ml-auto" disabled={isUpdatingProfile || fullName === currentUser.fullName}>
+              {isUpdatingProfile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Save Changes'}
             </Button>
           </CardFooter>
         </form>
@@ -126,22 +126,17 @@ export default function ProfilePage() {
         <form onSubmit={handlePasswordUpdate}>
             <CardContent className="space-y-4">
                 <div className="grid gap-1.5">
-                    <Label htmlFor="currentPassword">Current Password (Mock)</Label>
-                    <Input id="currentPassword" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} disabled={isUpdatingPassword}/>
-                    <p className="text-xs text-muted-foreground">In a real app, this would be verified.</p>
-                </div>
-                <div className="grid gap-1.5">
                     <Label htmlFor="newPassword">New Password</Label>
-                    <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} disabled={isUpdatingPassword} />
+                    <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} disabled={isUpdatingPassword} required />
                 </div>
                 <div className="grid gap-1.5">
                     <Label htmlFor="confirmNewPassword">Confirm New Password</Label>
-                    <Input id="confirmNewPassword" type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} disabled={isUpdatingPassword}/>
+                    <Input id="confirmNewPassword" type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} disabled={isUpdatingPassword} required />
                 </div>
             </CardContent>
             <CardFooter>
-                <Button type="submit" className="ml-auto" disabled={isUpdatingPassword}>
-                    {isUpdatingPassword ? <Loader2 className="animate-spin" /> : 'Update Password'}
+                <Button type="submit" className="ml-auto" disabled={isUpdatingPassword || !newPassword || !confirmNewPassword}>
+                    {isUpdatingPassword ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Update Password'}
                 </Button>
             </CardFooter>
         </form>
