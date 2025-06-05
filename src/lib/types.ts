@@ -107,3 +107,9 @@ export interface CartContextType {
   getTotalCartItems: () => number;
   isLoadingCart: boolean;
 }
+
+export interface NewsletterSubscription {
+  id: string;
+  email: string;
+  subscribedAt: string; // ISO date string
+}

@@ -5,10 +5,13 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getProducts } from '@/lib/product-service';
 import type { Product } from '@/lib/types';
+import { subscribeToNewsletter } from '@/lib/newsletter-service';
+import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input'; // Added Input for newsletter
 
 const categories = [
   { id: '1', name: 'Dresses', imageUrl: 'https://placehold.co/400x300.png', dataAiHint: 'dress collection' },
@@ -19,6 +22,9 @@ const categories = [
 export default function HomePage() {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [isSubscribing, setIsSubscribing] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchFeaturedProducts = async () => {
@@ -30,6 +36,23 @@ export default function HomePage() {
     };
     fetchFeaturedProducts();
   }, []);
+
+  const handleNewsletterSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!newsletterEmail) {
+      toast({ title: "Email Required", description: "Please enter your email address.", variant: "destructive" });
+      return;
+    }
+    setIsSubscribing(true);
+    const result = await subscribeToNewsletter(newsletterEmail);
+    if (result.success) {
+      toast({ title: "Subscribed!", description: result.message });
+      setNewsletterEmail('');
+    } else {
+      toast({ title: "Subscription Failed", description: result.message, variant: "destructive" });
+    }
+    setIsSubscribing(false);
+  };
 
   return (
     <div className="space-y-12">
@@ -114,14 +137,20 @@ export default function HomePage() {
         <p className="text-foreground/70 mb-6">
           Sign up for our newsletter to get the latest updates on new arrivals and exclusive offers.
         </p>
-        <form className="flex flex-col sm:flex-row max-w-md mx-auto gap-2">
-          <input
+        <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row max-w-md mx-auto gap-2">
+          <Input
             type="email"
             placeholder="Enter your email"
+            value={newsletterEmail}
+            onChange={(e) => setNewsletterEmail(e.target.value)}
             className="flex-grow p-3 border border-input rounded-md focus:ring-2 focus:ring-primary outline-none bg-background"
             aria-label="Email for newsletter"
+            disabled={isSubscribing}
           />
-          <Button type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground">Subscribe</Button>
+          <Button type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isSubscribing}>
+            {isSubscribing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Subscribe
+          </Button>
         </form>
       </section>
     </div>

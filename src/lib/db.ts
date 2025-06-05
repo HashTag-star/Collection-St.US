@@ -1,6 +1,6 @@
 
 import Database from 'better-sqlite3';
-import type { Product, User, Order, OrderItem, ShippingAddress } from './types';
+import type { Product, User, Order, OrderItem, ShippingAddress, NewsletterSubscription } from './types';
 
 // In a production Firebase environment, you might need a writable path.
 // For local dev and some App Hosting setups, this might be fine.
@@ -47,16 +47,16 @@ const initialOrdersData: Omit<Order, 'id' | 'items'>[] = [
   { userId: '1', orderDate: '2024-06-01T09:00:00Z', totalAmount: 180.00, status: 'Delivered', paymentStatus: 'Paid', shippingAddress: festusUsShippingAddress, customerFullName: 'Festus Us', customerEmail: 'festus@example.com' },
 ];
 
-// Note: The `productId` here is illustrative and will be replaced by looking up the actual ID from the DB by name.
-const initialOrderItemsData: Omit<OrderItem, 'id' | 'productId'>[] = [
+// Note: The `productName` here is used to look up actual product ID from the DB.
+const initialOrderItemsData: Omit<OrderItem, 'id' | 'productId' | 'orderId'>[] = [
   // Order 1 (Festus Us - Elegant Evening Gown)
-  { orderId: '1', productName: 'Elegant Evening Gown', productImageUrl: initialProductsData[0].imageUrls[0], quantity: 1, priceAtPurchase: 250.00, size: 'M' },
+  { productName: 'Elegant Evening Gown', productImageUrl: initialProductsData[0].imageUrls[0], quantity: 1, priceAtPurchase: 250.00, size: 'M' },
   // Order 2 (Festus Us - Chic Office Blouse)
-  { orderId: '2', productName: 'Chic Office Blouse', productImageUrl: initialProductsData[2].imageUrls[0], quantity: 1, priceAtPurchase: 90.00, size: 'L' },
+  { productName: 'Chic Office Blouse', productImageUrl: initialProductsData[2].imageUrls[0], quantity: 1, priceAtPurchase: 90.00, size: 'L' },
   // Order 3 (Ama Serwaa - Silk Scarf)
-  { orderId: '3', productName: 'Silk Scarf Collection', productImageUrl: initialProductsData[3].imageUrls[0], quantity: 1, priceAtPurchase: 75.00, size: undefined },
+  { productName: 'Silk Scarf Collection', productImageUrl: initialProductsData[3].imageUrls[0], quantity: 1, priceAtPurchase: 75.00, size: undefined },
   // Order 4 (Festus Us - Denim Jeans)
-  { orderId: '4', productName: 'Denim Jeans', productImageUrl: initialProductsData[4].imageUrls[0], quantity: 1, priceAtPurchase: 180.00, size: '32' },
+  { productName: 'Denim Jeans', productImageUrl: initialProductsData[4].imageUrls[0], quantity: 1, priceAtPurchase: 180.00, size: '32' },
 ];
 
 
@@ -136,6 +136,12 @@ function initializeDatabase() {
         FOREIGN KEY (orderId) REFERENCES orders(id),
         FOREIGN KEY (productId) REFERENCES products(id)
     );
+
+    CREATE TABLE IF NOT EXISTS newsletter_subscriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL UNIQUE,
+        subscribedAt TEXT NOT NULL -- ISO Date String
+    );
   `);
 
   // Seed initial users if users table is empty
@@ -194,42 +200,81 @@ function initializeDatabase() {
       'INSERT INTO order_items (orderId, productId, productName, productImageUrl, quantity, priceAtPurchase, size) VALUES (@orderId, @productId, @productName, @productImageUrl, @quantity, @priceAtPurchase, @size)'
     );
 
-    // Fetch all products from DB to map names to actual IDs
     const allProductsFromDB = db.prepare('SELECT id, name FROM products').all() as { id: number; name: string }[];
     const productMapByName = new Map(allProductsFromDB.map(p => [p.name, p.id]));
 
+    const orderIdMapping: Record<string, number> = {}; // To map mock order "ID" strings to actual DB IDs
+
     db.transaction(() => {
-      // Insert orders and get their IDs
-      const orderIds: number[] = [];
-      for (const order of initialOrdersData) {
+      // Insert orders and get their actual IDs
+      // We map mock user "ID" (like '1' for festus) to actual user ID from DB
+      const usersFromDB = db.prepare('SELECT id, email FROM users').all() as {id: number; email: string}[];
+      const userEmailToIdMap = new Map(usersFromDB.map(u => [u.email, u.id]));
+
+
+      initialOrdersData.forEach((order, index) => {
+        // Find the actual userId from the userEmailToIdMap
+        const actualUserId = userEmailToIdMap.get(order.customerEmail as string);
+        if (!actualUserId) {
+          console.warn(`Could not find user ID for email ${order.customerEmail} when seeding order. Skipping order.`);
+          return;
+        }
+
         const info = insertOrder.run({
             ...order,
-            shippingAddress: JSON.stringify(order.shippingAddress) // Ensure address is stringified
+            userId: actualUserId, // Use actual user ID
+            shippingAddress: JSON.stringify(order.shippingAddress)
         });
-        orderIds.push(info.lastInsertRowid as number);
-      }
+        // The mock order's 'userId' in initialOrdersData was used as a key,
+        // which doesn't directly map to our order item mock structure.
+        // Instead, we'll use the index as a key for now for simplicity in mock data mapping.
+        orderIdMapping[String(index + 1)] = info.lastInsertRowid as number;
+      });
+
 
       // Insert order items, mapping to the generated order IDs and looking up product IDs
-      for (const item of initialOrderItemsData) {
-        // Assuming item.orderId in mock data is a 1-based index corresponding to initialOrdersData
-        const mockOrderIdIndex = parseInt(item.orderId, 10) - 1;
-        const actualProductId = productMapByName.get(item.productName);
+      initialOrderItemsData.forEach((item, idx) => {
+          // This assumes initialOrderItemsData directly corresponds to initialOrdersData items
+          // by their array index (1-based for the mock 'orderId' field in the old data)
+          // Let's find which order this item belongs to.
+          // This part is tricky because the old mock `item.orderId` doesn't exist in new `initialOrderItemsData`.
+          // We'll assume for mock purposes that the first item in initialOrderItemsData belongs to the first order, etc.
+          // Or, more reliably, we need a way to link items to orders in the mock data itself.
+          // Let's assume initialOrderItemsData[i] belongs to initialOrdersData[i].
+          // This requires initialOrderItemsData and initialOrdersData to be structured such that items correspond.
+          // A better mock data structure would have items nested within orders.
 
-        if (mockOrderIdIndex >= 0 && mockOrderIdIndex < orderIds.length && actualProductId !== undefined) {
-          const actualOrderId = orderIds[mockOrderIdIndex];
-          insertOrderItem.run({
-            orderId: actualOrderId,
-            productId: actualProductId, // Use looked-up product ID
-            productName: item.productName,
-            productImageUrl: item.productImageUrl,
-            quantity: item.quantity,
-            priceAtPurchase: item.priceAtPurchase,
-            size: item.size || null, // Ensure size is null if undefined
-          });
-        } else {
-          console.warn(`Could not seed order item for product "${item.productName}" or order index ${item.orderId}. Product ID found: ${actualProductId}`);
-        }
-      }
+          // Given the current structure, we need to be careful. Let's map based on a logical grouping if possible.
+          // For this example, let's hardcode the mapping for simplicity of this fix stage:
+          // Item 0 -> Order 1 (initialOrdersData[0] -> orderIdMapping['1'])
+          // Item 1 -> Order 2 (initialOrdersData[1] -> orderIdMapping['2'])
+          // Item 2 -> Order 3 (initialOrdersData[2] -> orderIdMapping['3'])
+          // Item 3 -> Order 4 (initialOrdersData[3] -> orderIdMapping['4'])
+          
+          let targetMockOrderIdKey: string | undefined;
+          if (idx === 0) targetMockOrderIdKey = '1'; // First item maps to mock order '1'
+          else if (idx === 1) targetMockOrderIdKey = '2'; // Second item to mock order '2'
+          else if (idx === 2) targetMockOrderIdKey = '3'; // Third item to mock order '3'
+          else if (idx === 3) targetMockOrderIdKey = '4'; // Fourth item to mock order '4'
+
+
+          const actualOrderId = targetMockOrderIdKey ? orderIdMapping[targetMockOrderIdKey] : undefined;
+          const actualProductId = productMapByName.get(item.productName);
+
+          if (actualOrderId && actualProductId !== undefined) {
+            insertOrderItem.run({
+                orderId: actualOrderId,
+                productId: actualProductId,
+                productName: item.productName,
+                productImageUrl: item.productImageUrl,
+                quantity: item.quantity,
+                priceAtPurchase: item.priceAtPurchase,
+                size: item.size || null,
+            });
+          } else {
+            console.warn(`Could not seed order item for product "${item.productName}". Order ID: ${actualOrderId}, Product ID: ${actualProductId}`);
+          }
+      });
     })();
     console.log('Initial orders and order items seeded.');
   }

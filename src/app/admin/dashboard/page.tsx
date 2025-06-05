@@ -5,11 +5,12 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, Users, CreditCard, Activity, Download, Package, ShoppingCart, Loader2 } from 'lucide-react';
+import { DollarSign, Users, CreditCard, Activity, Download, Package, ShoppingCart, Loader2, Mail } from 'lucide-react'; // Added Mail
 import { Skeleton } from '@/components/ui/skeleton';
 import { getProducts } from '@/lib/product-service';
 import { getTotalRevenue, getTotalOrderCount, getPendingOrderCount, getRecentOrders } from '@/lib/order-service';
 import { getTotalUserCount } from '@/lib/user-service';
+import { getNewsletterSubscriptionCount } from '@/lib/newsletter-service'; // Import newsletter service
 import type { Product, Order } from '@/lib/types';
 import { useToast } from "@/hooks/use-toast";
 
@@ -60,9 +61,10 @@ export default function AdminDashboardPage() {
   
   const [stats, setStats] = useState([
     { title: 'Total Revenue', value: 0, icon: DollarSign, dataAiHint: 'financial graph' },
-    { title: 'Total Sales', value: 0, icon: ShoppingCart, dataAiHint: 'sales chart' }, // Changed icon
+    { title: 'Total Sales', value: 0, icon: ShoppingCart, dataAiHint: 'sales chart' },
     { title: 'Active Customers', value: 0, icon: Users, dataAiHint: 'customer demographics' },
     { title: 'Pending Orders', value: 0, icon: Package, dataAiHint: 'order fulfillment' },
+    { title: 'Newsletter Subscribers', value: 0, icon: Mail, dataAiHint: 'subscriber count' }, // Added newsletter stat
   ]);
 
   const { toast } = useToast();
@@ -72,12 +74,20 @@ export default function AdminDashboardPage() {
       setIsLoadingStats(true);
       setIsLoadingRecentOrders(true);
       try {
-        const [revenue, totalOrders, totalUsers, pendingOrdersData, recentOrdersData] = await Promise.all([
+        const [
+            revenue, 
+            totalOrders, 
+            totalUsers, 
+            pendingOrdersData, 
+            recentOrdersData,
+            newsletterSubscribersCount // Fetch newsletter count
+        ] = await Promise.all([
           getTotalRevenue(),
           getTotalOrderCount(),
           getTotalUserCount(),
           getPendingOrderCount(),
-          getRecentOrders(5)
+          getRecentOrders(5),
+          getNewsletterSubscriptionCount() 
         ]);
         
         setStats([
@@ -85,6 +95,7 @@ export default function AdminDashboardPage() {
           { title: 'Total Sales', value: totalOrders, icon: ShoppingCart, dataAiHint: 'sales chart' },
           { title: 'Active Customers', value: totalUsers, icon: Users, dataAiHint: 'customer demographics' },
           { title: 'Pending Orders', value: pendingOrdersData, icon: Package, dataAiHint: 'order fulfillment' },
+          { title: 'Newsletter Subscribers', value: newsletterSubscribersCount, icon: Mail, dataAiHint: 'subscriber count' },
         ]);
         setRecentOrders(recentOrdersData);
       } catch (error) {
@@ -161,7 +172,7 @@ export default function AdminDashboardPage() {
           {isLoadingProducts ? 'Loading Data...' : (products.length === 0 ? 'No Data to Export' : 'Export Product Inventory (CSV)')}
         </Button>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4 mt-6">
+      <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-3 xl:grid-cols-5 mt-6"> {/* Adjusted grid for 5 cards */}
         {stats.map((stat) => (
           <StatCard 
             key={stat.title} 
