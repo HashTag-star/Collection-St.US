@@ -35,12 +35,15 @@ export const signupUser = async (credentials: NewUserCredentials): Promise<{ use
 
     // In a real app, hash credentials.password before storing
     const stmt = db.prepare(
-      'INSERT INTO users (fullName, email, password) VALUES (@fullName, @email, @password)'
+      'INSERT INTO users (fullName, email, password, avatarUrl) VALUES (@fullName, @email, @password, @avatarUrl)'
     );
+    // For admin adding user, avatar can be a default placeholder or null
+    const defaultAvatar = 'https://placehold.co/100x100.png?text=User';
     const info = stmt.run({
       fullName: credentials.fullName,
       email: credentials.email,
       password: credentials.password, // Storing plaintext for prototype simplicity
+      avatarUrl: defaultAvatar, // Assign a default avatar
     });
 
     const newUserId = String(info.lastInsertRowid);
@@ -90,6 +93,18 @@ export const getUserById = async (id: string): Promise<User | undefined> => {
   }
 };
 
+export const getAllUsers = async (): Promise<User[]> => {
+  try {
+    const stmt = db.prepare('SELECT * FROM users ORDER BY fullName ASC');
+    const rows = stmt.all() as any[];
+    return rows.map(row => mapRowToUser(row)).filter(user => user !== undefined) as User[];
+  } catch (error) {
+    console.error('Failed to get all users:', error);
+    return [];
+  }
+};
+
+
 export const updateUserProfile = async (userId: string, updates: Partial<Pick<User, 'fullName' | 'avatarUrl'>>): Promise<{ user?: User; error?: string }> => {
   try {
     const setClauses: string[] = [];
@@ -136,5 +151,20 @@ export const updateUserPassword = async (userId: string, newPassword: string): P
   } catch (error) {
     console.error(`Failed to update password for user ${userId}:`, error);
     return { error: 'Password update failed.' };
+  }
+};
+
+// Admin function to delete a user (consider implications carefully)
+export const deleteUserById = async (id: string): Promise<{ success?: boolean; error?: string }> => {
+  try {
+    const stmt = db.prepare('DELETE FROM users WHERE id = ?');
+    const info = stmt.run(Number(id));
+    if (info.changes > 0) {
+      return { success: true };
+    }
+    return { error: 'User not found or no deletion occurred.' };
+  } catch (error) {
+    console.error(`Failed to delete user ${id}:`, error);
+    return { error: 'User deletion failed.' };
   }
 };

@@ -1,50 +1,55 @@
 
-'use client'; // Add 'use client'
+'use client';
 
-import Link from 'next/link'; // Added Link
+import Link from 'next/link';
+import React, { useEffect, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { MoreHorizontal, UserPlus } from "lucide-react";
-import { useToast } from "@/hooks/use-toast"; // Added useToast
-
-// Mock customer data
-const customers = [
-  { id: 'CUST001', name: 'Aisha Bello', email: 'aisha.bello@example.com', joinDate: '2023-01-15', totalOrders: 5, totalSpent: 750.00, avatarUrl: 'https://placehold.co/40x40.png', dataAiHint: 'female portrait' },
-  { id: 'CUST002', name: 'Chinedu Okoro', email: 'chinedu.okoro@example.com', joinDate: '2023-03-22', totalOrders: 2, totalSpent: 280.50, avatarUrl: 'https://placehold.co/40x40.png', dataAiHint: 'male portrait' },
-  { id: 'CUST003', name: 'Fatima Diallo', email: 'fatima.diallo@example.com', joinDate: '2023-05-10', totalOrders: 8, totalSpent: 1200.00, avatarUrl: 'https://placehold.co/40x40.png', dataAiHint: 'woman face' },
-  { id: 'CUST004', name: 'Kwame Mensah', email: 'kwame.mensah@example.com', joinDate: '2023-07-01', totalOrders: 1, totalSpent: 95.00, avatarUrl: 'https://placehold.co/40x40.png', dataAiHint: 'man face' },
-];
-
-// Helper Icon (if not already globally available)
-function UsersIcon(props: React.SVGProps<SVGSVGElement>) { // Renamed to avoid conflict if Users from lucide is imported elsewhere
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  )
-}
-
+import { MoreHorizontal, UserPlus, Users as UsersIconLucide, Loader2, Trash2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { getAllUsers, deleteUserById } from '@/lib/user-service';
+import type { User } from '@/lib/types';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function AdminCustomersPage() {
-  const { toast } = useToast(); // Initialize toast
+  const { toast } = useToast();
+  const [customers, setCustomers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      setIsLoading(true);
+      try {
+        const fetchedCustomers = await getAllUsers();
+        setCustomers(fetchedCustomers);
+      } catch (error) {
+        console.error("Failed to fetch customers:", error);
+        toast({ title: "Error", description: "Could not load customers.", variant: "destructive" });
+      }
+      setIsLoading(false);
+    };
+    fetchCustomers();
+  }, [toast]);
+  
+  const getInitials = (name: string = "") => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase() || 'U';
+  }
 
   const handleNotImplemented = (feature: string) => {
     toast({
@@ -52,6 +57,53 @@ export default function AdminCustomersPage() {
       description: `${feature} functionality is not yet implemented.`,
     });
   };
+
+  const handleDeleteClick = (customer: User) => {
+    setCustomerToDelete(customer);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!customerToDelete) return;
+    setIsDeleting(true);
+    const { success, error } = await deleteUserById(customerToDelete.id);
+    setIsDeleting(false);
+    setShowDeleteDialog(false);
+
+    if (success) {
+      toast({ title: "Customer Deleted", description: `${customerToDelete.fullName} has been removed.` });
+      setCustomers(prevCustomers => prevCustomers.filter(c => c.id !== customerToDelete.id));
+    } else {
+      toast({ title: "Error", description: error || "Could not delete customer.", variant: "destructive" });
+    }
+    setCustomerToDelete(null);
+  };
+
+
+  if (isLoading) {
+     return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="font-headline text-3xl font-semibold">Customers</h1>
+          <Button asChild>
+            <Link href="/admin/customers/new">
+              <UserPlus className="mr-2 h-4 w-4" /> Add New Customer
+            </Link>
+          </Button>
+        </div>
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="font-headline">Customer List</CardTitle>
+            <CardDescription>View and manage your customer base.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center items-center py-10">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-2">Loading customers...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -77,9 +129,8 @@ export default function AdminCustomersPage() {
                   <TableHead className="hidden sm:table-cell">Avatar</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead className="hidden md:table-cell">Join Date</TableHead>
-                  <TableHead className="hidden md:table-cell text-right">Total Spent</TableHead>
-                  <TableHead className="text-center">Orders</TableHead>
+                  {/* Mock data like joinDate, totalOrders, totalSpent are removed as they are not in User type yet */}
+                  <TableHead className="text-center">Status</TableHead> {/* Placeholder for status */}
                   <TableHead>
                     <span className="sr-only">Actions</span>
                   </TableHead>
@@ -90,16 +141,14 @@ export default function AdminCustomersPage() {
                   <TableRow key={customer.id}>
                     <TableCell className="hidden sm:table-cell">
                       <Avatar className="h-9 w-9">
-                        <AvatarImage src={customer.avatarUrl} alt={customer.name} data-ai-hint={customer.dataAiHint} />
-                        <AvatarFallback>{customer.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                        <AvatarImage src={customer.avatarUrl || `https://placehold.co/40x40.png?text=${getInitials(customer.fullName)}`} alt={customer.fullName} data-ai-hint="user avatar" />
+                        <AvatarFallback>{getInitials(customer.fullName)}</AvatarFallback>
                       </Avatar>
                     </TableCell>
-                    <TableCell className="font-medium">{customer.name}</TableCell>
+                    <TableCell className="font-medium">{customer.fullName}</TableCell>
                     <TableCell>{customer.email}</TableCell>
-                    <TableCell className="hidden md:table-cell">{customer.joinDate}</TableCell>
-                    <TableCell className="hidden md:table-cell text-right">GH₵ {customer.totalSpent.toFixed(2)}</TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="secondary">{customer.totalOrders}</Badge>
+                      <Badge variant="secondary">Active</Badge> {/* Placeholder status */}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -114,12 +163,18 @@ export default function AdminCustomersPage() {
                           <DropdownMenuItem asChild>
                             <Link href={`/admin/customers/${customer.id}`}>View Profile</Link>
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleNotImplemented(`Viewing orders for ${customer.name}`)}>
+                          <DropdownMenuItem onClick={() => handleNotImplemented(`Viewing orders for ${customer.fullName}`)}>
                             View Orders
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                            onClick={() => handleNotImplemented(`Suspending account for ${customer.name}`)}
+                            onClick={() => handleDeleteClick(customer)}
+                          >
+                            <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete Customer
+                          </DropdownMenuItem>
+                           <DropdownMenuItem 
+                            className="text-orange-600 focus:text-orange-600 focus:bg-orange-500/10"
+                            onClick={() => handleNotImplemented(`Suspending account for ${customer.fullName}`)}
                           >
                             Suspend Account
                           </DropdownMenuItem>
@@ -132,13 +187,31 @@ export default function AdminCustomersPage() {
             </Table>
           ) : (
             <div className="text-center py-12">
-              <UsersIcon className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+              <UsersIconLucide className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
               <h2 className="font-headline text-2xl font-semibold mb-2">No Customers Yet</h2>
-              <p className="text-muted-foreground">Your customer list will appear here once they start signing up.</p>
+              <p className="text-muted-foreground">Your customer list will appear here once they start signing up or are added.</p>
             </div>
           )}
         </CardContent>
       </Card>
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the customer
+              &quot;{customerToDelete?.fullName}&quot; and their account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setCustomerToDelete(null)} disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+              {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Delete Customer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
