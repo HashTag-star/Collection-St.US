@@ -5,21 +5,20 @@ import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'; // Added CardHeader, CardTitle, CardFooter
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Star, ShoppingCart, Plus, Minus, ChevronLeft } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { getProductById, getProducts } from '@/lib/product-service'; // Added getProducts
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { getProductById, getProducts } from '@/lib/product-service';
 import type { Product } from '@/lib/types';
+import { useCart } from '@/contexts/CartContext'; // Import useCart
 
-// Define the expected type for resolved params
 type ResolvedParamsType = { id: string };
-// Define the prop type, which could be the resolved type or a Promise of it
 type ParamsPropType = ResolvedParamsType | Promise<ResolvedParamsType>;
 
-// Custom hook to resolve params if they are a Promise
 function useResolvedParams(paramsProp: ParamsPropType): ResolvedParamsType | null {
   if (typeof (paramsProp as Promise<ResolvedParamsType>)?.then === 'function') {
     return React.use(paramsProp as Promise<ResolvedParamsType>);
@@ -29,6 +28,7 @@ function useResolvedParams(paramsProp: ParamsPropType): ResolvedParamsType | nul
 
 export default function ProductDetailPage({ params: paramsPropInput }: { params: ParamsPropType }) {
   const params = useResolvedParams(paramsPropInput);
+  const { addToCart } = useCart();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
@@ -36,6 +36,7 @@ export default function ProductDetailPage({ params: paramsPropInput }: { params:
   const [isLoadingRelated, setIsLoadingRelated] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const [selectedSize, setSelectedSize] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const fetchProductData = async () => {
@@ -47,8 +48,12 @@ export default function ProductDetailPage({ params: paramsPropInput }: { params:
           if (fetchedProduct && fetchedProduct.status === 'Active') {
             setProduct(fetchedProduct);
             setSelectedImage(fetchedProduct.imageUrls[0] || 'https://placehold.co/800x1200.png');
+            if (fetchedProduct.sizes && fetchedProduct.sizes.length > 0) {
+              setSelectedSize(fetchedProduct.sizes[0]); // Default to first size
+            } else {
+              setSelectedSize(undefined);
+            }
 
-            // Fetch related products
             const allProducts = await getProducts();
             const related = allProducts
               .filter(
@@ -57,7 +62,7 @@ export default function ProductDetailPage({ params: paramsPropInput }: { params:
                   p.id !== fetchedProduct.id &&
                   p.status === 'Active'
               )
-              .slice(0, 4); // Get up to 4 related products
+              .slice(0, 4);
             setRelatedProducts(related);
 
           } else {
@@ -88,7 +93,23 @@ export default function ProductDetailPage({ params: paramsPropInput }: { params:
   };
 
   const handleQuantityChange = (change: number) => {
-    setQuantity(prev => Math.max(1, prev + change));
+    setQuantity(prev => {
+      const newQuantity = prev + change;
+      if (newQuantity < 1) return 1;
+      if (product && newQuantity > product.stock) return product.stock;
+      return newQuantity;
+    });
+  };
+
+  const handleAddToCart = () => {
+    if (product) {
+      if (product.sizes && product.sizes.length > 0 && !selectedSize) {
+        // This case should ideally be prevented by disabling the button or UI cues
+        alert("Please select a size."); // Or use a toast
+        return;
+      }
+      addToCart(product, quantity, selectedSize);
+    }
   };
 
   if (isLoading && !product) {
@@ -122,6 +143,8 @@ export default function ProductDetailPage({ params: paramsPropInput }: { params:
 
   const stockStatusText = product.stock > 10 ? 'In Stock' : product.stock > 0 ? 'Low Stock' : 'Out of Stock';
   const stockBadgeVariant = product.stock > 0 ? 'default' : 'destructive';
+  const canAddToCart = product.stock > 0 && quantity <= product.stock && (!product.sizes || product.sizes.length === 0 || !!selectedSize);
+
 
   return (
     <div className="space-y-8">
@@ -132,7 +155,6 @@ export default function ProductDetailPage({ params: paramsPropInput }: { params:
         </Link>
       </Button>
       <div className="grid md:grid-cols-2 gap-8 items-start">
-        {/* Product Images */}
         <div>
           <Image
             src={selectedImage || product.imageUrls[0] || 'https://placehold.co/800x1200.png'}
@@ -165,7 +187,6 @@ export default function ProductDetailPage({ params: paramsPropInput }: { params:
           )}
         </div>
 
-        {/* Product Details */}
         <div className="space-y-6">
           <Badge variant={stockBadgeVariant} className="capitalize bg-primary/10 text-primary border-primary/20">
             {stockStatusText} {product.stock > 0 ? `(${product.stock} left)`: ''}
@@ -186,15 +207,35 @@ export default function ProductDetailPage({ params: paramsPropInput }: { params:
           <p className="text-3xl font-semibold text-primary">GH₵ {product.price.toFixed(2)}</p>
 
           <Separator />
-
           <p className="text-foreground/80 leading-relaxed">{product.description}</p>
-
           <Separator />
 
+          {product.sizes && product.sizes.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Size:</Label>
+              <RadioGroup
+                value={selectedSize}
+                onValueChange={setSelectedSize}
+                className="flex flex-wrap gap-2"
+              >
+                {product.sizes.map((size) => (
+                  <Label
+                    key={size}
+                    htmlFor={`size-${size}`}
+                    className={`border rounded-md px-3 py-1.5 text-sm cursor-pointer hover:bg-muted/50 has-[:checked]:bg-primary has-[:checked]:text-primary-foreground has-[:checked]:border-primary`}
+                  >
+                    <RadioGroupItem value={size} id={`size-${size}`} className="sr-only" />
+                    {size}
+                  </Label>
+                ))}
+              </RadioGroup>
+            </div>
+          )}
+          
           <div className="flex items-center space-x-4">
             <Label htmlFor="quantity" className="text-sm font-medium">Quantity:</Label>
             <div className="flex items-center border rounded-md">
-              <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleQuantityChange(-1)} disabled={quantity <=1}>
+              <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleQuantityChange(-1)} disabled={quantity <= 1}>
                 <Minus className="h-4 w-4" />
               </Button>
               <Input
@@ -210,7 +251,7 @@ export default function ProductDetailPage({ params: paramsPropInput }: { params:
             </div>
           </div>
 
-          <Button size="lg" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" disabled={product.stock === 0}>
+          <Button size="lg" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" disabled={!canAddToCart} onClick={handleAddToCart}>
             <ShoppingCart className="mr-2 h-5 w-5" /> {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
           </Button>
 
@@ -239,7 +280,7 @@ export default function ProductDetailPage({ params: paramsPropInput }: { params:
                       alt={relatedProduct.name}
                       width={600}
                       height={800}
-                      className="object-cover w-full h-80" // Adjusted height for consistency
+                      className="object-cover w-full h-80"
                       data-ai-hint={relatedProduct.dataAiHint}
                     />
                   </Link>

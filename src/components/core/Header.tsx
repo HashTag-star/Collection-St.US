@@ -7,11 +7,15 @@ import { Logo } from '@/components/core/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Badge } from '@/components/ui/badge'; // Import Badge
 import { useAuth } from '@/contexts/AuthContext';
+import { useCart } from '@/contexts/CartContext'; // Import useCart
 import React from 'react';
 
 export function Header() {
   const { currentUser, logout, isLoadingAuth } = useAuth();
+  const { getTotalCartItems, isLoadingCart } = useCart(); // Get cart functions
+  const totalCartItems = getTotalCartItems();
 
   const navItems = [
     { href: '/', label: 'Home' },
@@ -88,9 +92,17 @@ export function Header() {
               <Input type="search" placeholder="Search products..." className="pl-9" />
             </div>
           </form>
-          <Button variant="ghost" size="icon" asChild>
+          <Button variant="ghost" size="icon" asChild className="relative">
             <Link href="/cart">
               <ShoppingCart className="h-5 w-5" />
+              {!isLoadingCart && totalCartItems > 0 && (
+                <Badge 
+                  variant="destructive" 
+                  className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs rounded-full"
+                >
+                  {totalCartItems}
+                </Badge>
+              )}
               <span className="sr-only">Shopping Cart</span>
             </Link>
           </Button>

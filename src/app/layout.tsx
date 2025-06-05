@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from '@/contexts/AuthContext';
+import { CartProvider } from '@/contexts/CartContext'; // Import CartProvider
 
 export const metadata: Metadata = {
   title: 'St.Us Collections Online',
@@ -24,8 +25,10 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased min-h-screen flex flex-col">
         <AuthProvider>
-          {children}
-          <Toaster />
+          <CartProvider> {/* Wrap with CartProvider */}
+            {children}
+            <Toaster />
+          </CartProvider>
         </AuthProvider>
       </body>
     </html>

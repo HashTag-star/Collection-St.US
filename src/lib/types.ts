@@ -14,16 +14,14 @@ export interface Product {
   sizes?: string[]; // Optional: Array of available sizes like ['S', 'M', 'L']
 }
 
-// Cart items might still use a simplified structure or be adapted later
 export interface CartItem {
-  id: string;
+  productId: string; // References Product.id
   name: string;
-  price: number;
-  imageUrl: string;
+  price: number; // Price at the time of adding to cart
+  imageUrl: string; // Main image URL
   quantity: number;
-  size?: string;
-  color?: string;
-  dataAiHint?: string;
+  size?: string; // Optional, to distinguish items like "T-Shirt, Size M" and "T-Shirt, Size L"
+  availableStock: number; // Store the original stock of the product variant
 }
 
 export interface User {
@@ -45,11 +43,67 @@ export type NewProductData = {
   description: string;
   imageProductDataUris?: string[]; // data URIs from file upload
   dataAiHint: string;
-  // Sizes are not managed via this form in this iteration
+  sizes?: string[];
 };
 
-export type UpdateProductData = Partial<Omit<Product, 'id' | 'imageUrls' | 'rating' | 'reviews' | 'dataAiHint' | 'sizes'>> & {
-  // We are not allowing direct image URL or sizes updates via this type for simplicity in this step.
+export type UpdateProductData = Partial<Omit<Product, 'id' | 'imageUrls' | 'rating' | 'reviews' | 'sizes'>> & {
   // dataAiHint will be derived from name if not provided or kept as is.
+  // sizes can be updated
+  sizes?: string[] | null; // Allow setting to null or empty array
 };
 
+export interface ShippingAddress {
+  firstName: string;
+  lastName: string;
+  address: string;
+  city: string;
+  phone: string;
+}
+
+export interface OrderItem {
+  id: string; // Or orderItemId
+  orderId: string;
+  productId: string;
+  productName: string;
+  productImageUrl: string;
+  quantity: number;
+  priceAtPurchase: number; // Price of the product when the order was made
+  size?: string;
+}
+
+export interface Order {
+  id: string;
+  userId: string;
+  orderDate: string; // ISO date string
+  totalAmount: number;
+  status: 'Pending Payment' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
+  paymentStatus: 'Pending' | 'Paid' | 'Failed' | 'Refunded';
+  shippingAddress: ShippingAddress; // Stored as JSON in DB
+  items: OrderItem[]; // Typically fetched separately or joined
+  customerFullName?: string; // Denormalized for admin display, optional
+  customerEmail?: string; // Denormalized for admin display, optional
+}
+
+
+export interface NewOrderData {
+  userId: string;
+  items: CartItem[]; // Items from the cart
+  shippingAddress: ShippingAddress;
+  subtotal: number;
+  shippingCost: number;
+  totalAmount: number;
+  paymentMethod: string; // e.g., 'Mobile Money', 'Card'
+  paymentStatus: Order['paymentStatus']; // Initial payment status
+}
+
+
+export interface CartContextType {
+  cartItems: CartItem[];
+  addToCart: (product: Product, quantity: number, selectedSize?: string) => void;
+  removeFromCart: (productId: string, size?: string) => void;
+  updateQuantity: (productId: string, newQuantity: number, size?: string) => void;
+  clearCart: () => void;
+  getCartSubtotal: () => number;
+  getTotalCartItems: () => number;
+  isLoadingCart: boolean;
+}
