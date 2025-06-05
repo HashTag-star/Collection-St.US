@@ -24,14 +24,12 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error) {
       console.error("Failed to load cart from local storage:", error);
-      // Optionally clear corrupted cart data
-      // localStorage.removeItem(CART_STORAGE_KEY);
     }
     setIsLoadingCart(false);
   }, []);
 
   useEffect(() => {
-    if (!isLoadingCart) { // Only save to localStorage after initial load
+    if (!isLoadingCart) {
       try {
         localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartItems));
       } catch (error) {
@@ -47,6 +45,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
     if (quantity <= 0) return;
 
+    let itemEffectivelyAdded = false;
+    let stockLimitReachedDuringAdd = false;
+    let finalEffectiveQuantity = quantity;
+
+
     setCartItems(prevItems => {
       const existingItemIndex = prevItems.findIndex(
         item => item.productId === product.id && item.size === selectedSize
@@ -59,16 +62,21 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           if (index === existingItemIndex) {
             const newQuantity = item.quantity + quantity;
             if (newQuantity > product.stock) {
-              toast({ title: "Stock Limit Reached", description: `Cannot add more ${product.name} (Size: ${selectedSize || 'N/A'}) than available in stock (${product.stock}).`, variant: "destructive" });
+              stockLimitReachedDuringAdd = true;
+              finalEffectiveQuantity = product.stock - item.quantity > 0 ? product.stock - item.quantity : 0; // quantity that was actually added
+              itemEffectivelyAdded = finalEffectiveQuantity > 0;
               return { ...item, quantity: product.stock };
             }
+            itemEffectivelyAdded = true;
+            finalEffectiveQuantity = quantity;
             return { ...item, quantity: newQuantity };
           }
           return item;
         });
       } else {
         if (quantity > product.stock) {
-          toast({ title: "Stock Limit Reached", description: `Cannot add ${product.name} (Size: ${selectedSize || 'N/A'}) - requested quantity exceeds stock (${product.stock}).`, variant: "destructive" });
+          stockLimitReachedDuringAdd = true;
+          finalEffectiveQuantity = product.stock;
           newCartItems = [...prevItems, {
             productId: product.id,
             name: product.name,
@@ -89,37 +97,80 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
             availableStock: product.stock,
           }];
         }
+        itemEffectivelyAdded = true; // New item is always "effectively added" even if capped
       }
-      toast({ title: "Item Added", description: `${product.name} ${selectedSize ? `(Size: ${selectedSize}) ` : ''}added to cart.` });
       return newCartItems;
     });
+
+    // Call toasts after state update is scheduled
+    if (stockLimitReachedDuringAdd) {
+       if (itemEffectivelyAdded && finalEffectiveQuantity > 0) {
+         toast({ title: "Stock Limit Reached", description: `Added ${finalEffectiveQuantity} of ${product.name} (Size: ${selectedSize || 'N/A'}) up to available stock (${product.stock}).`, variant: "destructive" });
+       } else if (!itemEffectivelyAdded && finalEffectiveQuantity === 0) { // Case where existing item was already at max stock
+         toast({ title: "Stock Limit Reached", description: `Cannot add more ${product.name} (Size: ${selectedSize || 'N/A'}), already at max stock (${product.stock}).`, variant: "destructive" });
+       } else {
+         toast({ title: "Stock Limit Reached", description: `Requested quantity for ${product.name} (Size: ${selectedSize || 'N/A'}) exceeds stock (${product.stock}). Added max available.`, variant: "destructive" });
+       }
+    } else if (itemEffectivelyAdded) {
+      toast({ title: "Item Added", description: `${quantity} x ${product.name} ${selectedSize ? `(Size: ${selectedSize}) ` : ''}added to cart.` });
+    }
   }, [toast]);
 
   const removeFromCart = useCallback((productId: string, size?: string) => {
-    setCartItems(prevItems =>
-      prevItems.filter(item => !(item.productId === productId && item.size === size))
-    );
-    toast({ title: "Item Removed", description: "Item removed from cart." });
+    let removedItemName = '';
+    setCartItems(prevItems => {
+      const itemToRemove = prevItems.find(item => item.productId === productId && item.size === size);
+      if (itemToRemove) {
+        removedItemName = itemToRemove.name;
+      }
+      return prevItems.filter(item => !(item.productId === productId && item.size === size));
+    });
+    if (removedItemName) {
+      toast({ title: "Item Removed", description: `${removedItemName} removed from cart.` });
+    }
   }, [toast]);
 
   const updateQuantity = useCallback((productId: string, newQuantity: number, size?: string) => {
+    let operationOutcome: 'success' | 'invalid_quantity' | 'stock_limit' | 'no_change' = 'no_change';
+    let itemNameForToast = '';
+    let stockForToast = 0;
+    let originalQuantity = 0;
+    let finalQuantity = newQuantity;
+
     setCartItems(prevItems =>
       prevItems.map(item => {
         if (item.productId === productId && item.size === size) {
+          itemNameForToast = item.name;
+          stockForToast = item.availableStock;
+          originalQuantity = item.quantity;
+
           if (newQuantity <= 0) {
-            // This case should ideally trigger remove, but for direct update:
-            toast({ title: "Invalid Quantity", description: "Quantity must be at least 1. Use remove to delete.", variant: "destructive" });
-            return item; // Or handle removal
+            operationOutcome = 'invalid_quantity';
+            finalQuantity = item.quantity; // Keep original if invalid
+            return item;
           }
           if (newQuantity > item.availableStock) {
-            toast({ title: "Stock Limit Reached", description: `Cannot set quantity for ${item.name} (Size: ${size || 'N/A'}) above available stock (${item.availableStock}).`, variant: "destructive" });
+            operationOutcome = 'stock_limit';
+            finalQuantity = item.availableStock;
             return { ...item, quantity: item.availableStock };
+          }
+          if (item.quantity !== newQuantity) {
+            operationOutcome = 'success';
           }
           return { ...item, quantity: newQuantity };
         }
         return item;
       })
     );
+
+    // Call toasts after state update
+    if (operationOutcome === 'invalid_quantity') {
+      toast({ title: "Invalid Quantity", description: "Quantity must be at least 1. Use remove icon to delete.", variant: "destructive" });
+    } else if (operationOutcome === 'stock_limit') {
+      toast({ title: "Stock Limit Reached", description: `Quantity for ${itemNameForToast} (Size: ${size || 'N/A'}) set to max available stock (${stockForToast}).`, variant: "destructive" });
+    } else if (operationOutcome === 'success') {
+       toast({ title: "Quantity Updated", description: `Quantity for ${itemNameForToast} ${size ? `(Size: ${size}) ` : ''}changed to ${finalQuantity}.` });
+    }
   }, [toast]);
 
   const clearCart = useCallback(() => {
@@ -127,11 +178,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     toast({ title: "Cart Cleared", description: "Your shopping cart is now empty." });
   }, [toast]);
 
-  const getCartSubtotal = useCallback(() : number => {
+  const getCartSubtotal = useCallback((): number => {
     return cartItems.reduce((total, item) => total + item.price * item.quantity, 0);
   }, [cartItems]);
 
-  const getTotalCartItems = useCallback(() : number => {
+  const getTotalCartItems = useCallback((): number => {
     return cartItems.reduce((total, item) => total + item.quantity, 0);
   }, [cartItems]);
 
@@ -159,3 +210,4 @@ export const useCart = (): CartContextType => {
   }
   return context;
 };
+
