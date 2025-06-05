@@ -2,7 +2,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import React, { useEffect } from 'react';
 import {
   Bell,
   Home,
@@ -12,11 +13,11 @@ import {
   LineChart,
   Settings,
   LogOut,
-  FileText,
   Palette,
   Menu,
-  User, // Added User import
-  MailOpen, // Added MailOpen for subscribers
+  User, 
+  MailOpen, 
+  Loader2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -36,18 +37,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Logo } from '@/components/core/Logo';
-import React from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+
+const ADMIN_EMAIL = 'admin@stus.com';
 
 const navItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: Home },
-  { href: '/admin/orders', label: 'Orders', icon: ShoppingCart, badge: 6 },
+  { href: '/admin/orders', label: 'Orders', icon: ShoppingCart, badge: 0 }, // Badge will be dynamic later
   { href: '/admin/products', label: 'Products', icon: Package },
   { href: '/admin/products/new', label: 'Add Product (AI)', icon: Palette },
   { href: '/admin/customers', label: 'Customers', icon: Users },
-  { href: '/admin/subscribers', label: 'Subscribers', icon: MailOpen }, // New subscribers link
+  { href: '/admin/subscribers', label: 'Subscribers', icon: MailOpen },
   { href: '/admin/analytics', label: 'Analytics', icon: LineChart },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
@@ -58,6 +60,57 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { currentUser, isLoadingAuth, logout } = useAuth();
+
+  useEffect(() => {
+    if (!isLoadingAuth) {
+      if (!currentUser || currentUser.email !== ADMIN_EMAIL) {
+        if (pathname !== '/admin/login') { // Avoid redirect loop if already on login page
+          router.push('/admin/login');
+        }
+      }
+    }
+  }, [currentUser, isLoadingAuth, router, pathname]);
+
+  if (isLoadingAuth && pathname !== '/admin/login') {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+  
+  // If we are on the login page, or if the user is not an admin and trying to access non-login admin pages,
+  // we might want to render a minimal layout or just children (for login page)
+  // However, the effect above should handle redirection.
+  // If user is not admin and not loading, and tries to access admin page, they are redirected.
+  // If user *is* admin, this layout is shown.
+  // If current path is login page, and user is already admin, they should be redirected to dashboard.
+   useEffect(() => {
+    if (!isLoadingAuth && currentUser && currentUser.email === ADMIN_EMAIL && pathname === '/admin/login') {
+      router.push('/admin/dashboard');
+    }
+  }, [currentUser, isLoadingAuth, router, pathname]);
+
+
+  // Do not render full admin layout if user is not authenticated admin and not on login page
+  if (!isLoadingAuth && (!currentUser || currentUser.email !== ADMIN_EMAIL) && pathname !== '/admin/login') {
+    // This state should ideally be caught by the redirect effect,
+    // but as a fallback, prevent rendering the layout.
+    // Or, more simply, the redirect effect is primary.
+    // If on login page, children (login page) should render.
+    if (pathname === '/admin/login') {
+      return <>{children}</>;
+    }
+    return null; // Or a loading/access denied component, but redirect is cleaner
+  }
+  
+  // If on login page and not yet authenticated, just render children (login page)
+  if (pathname === '/admin/login' && (!currentUser || currentUser.email !== ADMIN_EMAIL)) {
+      return <>{children}</>;
+  }
+
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
@@ -84,7 +137,7 @@ export default function AdminLayout({
                 >
                   <item.icon className="h-4 w-4" />
                   {item.label}
-                  {item.badge && (
+                  {item.badge && item.badge > 0 && ( // Only show badge if count > 0
                     <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground">
                       {item.badge}
                     </Badge>
@@ -102,15 +155,22 @@ export default function AdminLayout({
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
-                <Button size="sm" className="w-full">
+                <Button size="sm" className="w-full" disabled>
                   Get Support
                 </Button>
               </CardContent>
             </Card>
-            <Link href="/" className="mt-4 flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-muted-foreground transition-all hover:text-sidebar-primary">
+            <Button 
+              variant="ghost" 
+              className="mt-4 w-full justify-start gap-3 rounded-lg px-3 py-2 text-sidebar-muted-foreground transition-all hover:text-sidebar-primary"
+              onClick={() => {
+                logout(); // Ensure admin is logged out from AuthContext
+                router.push('/'); // Redirect to homepage or main login
+              }}
+            >
                 <LogOut className="h-4 w-4" />
                 Logout / View Store
-            </Link>
+            </Button>
           </div>
         </div>
       </div>
@@ -130,7 +190,7 @@ export default function AdminLayout({
             <SheetContent side="left" className="flex flex-col">
               <nav className="grid gap-2 text-lg font-medium">
                 <Link
-                  href="#"
+                  href="/admin/dashboard"
                   className="flex items-center gap-2 text-lg font-semibold mb-4"
                 >
                   <Logo className="h-8 w-auto" />
@@ -145,7 +205,7 @@ export default function AdminLayout({
                   >
                     <item.icon className="h-5 w-5" />
                     {item.label}
-                    {item.badge && (
+                    {item.badge && item.badge > 0 && (
                       <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
                         {item.badge}
                       </Badge>
@@ -162,20 +222,26 @@ export default function AdminLayout({
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <Button size="sm" className="w-full">
+                    <Button size="sm" className="w-full" disabled>
                       Get Support
                     </Button>
                   </CardContent>
                 </Card>
-                 <Link href="/" className="mt-4 flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
+                 <Button 
+                    variant="ghost" 
+                    className="mt-4 w-full justify-start gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+                    onClick={() => {
+                        logout();
+                        router.push('/');
+                    }}
+                  >
                     <LogOut className="h-4 w-4" />
                     Logout / View Store
-                </Link>
+                </Button>
               </div>
             </SheetContent>
           </Sheet>
           <div className="w-full flex-1">
-            {/* Can add breadcrumbs or page title here */}
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -185,13 +251,16 @@ export default function AdminLayout({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Festus (Admin)</DropdownMenuLabel>
+              <DropdownMenuLabel>{currentUser?.fullName || 'Admin'}</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Settings</DropdownMenuItem>
-              <DropdownMenuItem>Support</DropdownMenuItem>
+              <DropdownMenuItem disabled>Settings</DropdownMenuItem>
+              <DropdownMenuItem disabled>Support</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/">Logout</Link>
+              <DropdownMenuItem onClick={() => {
+                  logout();
+                  router.push('/admin/login'); // Redirect to admin login after admin logout
+              }}>
+                Logout
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -203,3 +272,4 @@ export default function AdminLayout({
     </div>
   );
 }
+    

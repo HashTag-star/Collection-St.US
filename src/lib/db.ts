@@ -20,8 +20,9 @@ const initialProductsData: Omit<Product, 'id'>[] = [
 ];
 
 const initialUsersData: Omit<User, 'id'>[] = [
-    { fullName: 'Festus Us', email: 'festus@example.com', password: 'password123', avatarUrl: 'https://placehold.co/100x100.png' },
-    { fullName: 'Ama Serwaa', email: 'ama@example.com', password: 'password123', avatarUrl: 'https://placehold.co/100x100.png' },
+    { fullName: 'Festus Us', email: 'festus@example.com', password: 'password123', avatarUrl: 'https://placehold.co/100x100.png?text=FU' },
+    { fullName: 'Ama Serwaa', email: 'ama@example.com', password: 'password123', avatarUrl: 'https://placehold.co/100x100.png?text=AS' },
+    { fullName: 'Admin User', email: 'admin@stus.com', password: 'adminpassword', avatarUrl: 'https://placehold.co/100x100.png?text=AU' },
 ];
 
 const festusUsShippingAddress: ShippingAddress = {
@@ -113,26 +114,26 @@ function initializeDatabase() {
 
     CREATE TABLE IF NOT EXISTS orders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        userId INTEGER NOT NULL, -- Changed from TEXT to INTEGER for foreign key
-        orderDate TEXT NOT NULL, -- ISO Date String
+        userId INTEGER NOT NULL, 
+        orderDate TEXT NOT NULL, 
         totalAmount REAL NOT NULL,
         status TEXT NOT NULL CHECK(status IN ('Pending Payment', 'Processing', 'Shipped', 'Delivered', 'Cancelled')),
         paymentStatus TEXT NOT NULL CHECK(paymentStatus IN ('Pending', 'Paid', 'Failed', 'Refunded')),
-        shippingAddress TEXT NOT NULL, -- JSON string
-        customerFullName TEXT, -- Denormalized for convenience
-        customerEmail TEXT, -- Denormalized for convenience
+        shippingAddress TEXT NOT NULL, 
+        customerFullName TEXT, 
+        customerEmail TEXT, 
         FOREIGN KEY (userId) REFERENCES users(id)
     );
 
     CREATE TABLE IF NOT EXISTS order_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        orderId INTEGER NOT NULL, -- Changed from TEXT to INTEGER
-        productId INTEGER NOT NULL, -- Changed from TEXT to INTEGER
+        orderId INTEGER NOT NULL, 
+        productId INTEGER NOT NULL, 
         productName TEXT NOT NULL,
         productImageUrl TEXT,
         quantity INTEGER NOT NULL,
         priceAtPurchase REAL NOT NULL,
-        size TEXT, -- Optional
+        size TEXT, 
         FOREIGN KEY (orderId) REFERENCES orders(id),
         FOREIGN KEY (productId) REFERENCES products(id)
     );
@@ -140,11 +141,10 @@ function initializeDatabase() {
     CREATE TABLE IF NOT EXISTS newsletter_subscriptions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         email TEXT NOT NULL UNIQUE,
-        subscribedAt TEXT NOT NULL -- ISO Date String
+        subscribedAt TEXT NOT NULL 
     );
   `);
 
-  // Seed initial users if users table is empty
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
   if (userCount.count === 0) {
     const insertUser = db.prepare(
@@ -158,7 +158,6 @@ function initializeDatabase() {
     console.log('Initial users seeded.');
   }
 
-  // Seed initial products if products table is empty
   const productCount = db.prepare('SELECT COUNT(*) as count FROM products').get() as { count: number };
   if (productCount.count === 0) {
     const insertProduct = db.prepare(
@@ -178,7 +177,6 @@ function initializeDatabase() {
     console.log('Initial products seeded.');
   }
 
-  // Seed initial store settings if settings table is empty
   const settingsCount = db.prepare('SELECT COUNT(*) as count FROM store_settings').get() as { count: number };
   if (settingsCount.count === 0) {
     const insertSetting = db.prepare('INSERT INTO store_settings (key, value) VALUES (@key, @value)');
@@ -190,7 +188,6 @@ function initializeDatabase() {
     console.log('Initial store settings seeded.');
   }
 
-  // Seed initial orders and order items if tables are empty
   const orderCount = db.prepare('SELECT COUNT(*) as count FROM orders').get() as { count: number };
   if (orderCount.count === 0) {
     const insertOrder = db.prepare(
@@ -202,63 +199,38 @@ function initializeDatabase() {
 
     const allProductsFromDB = db.prepare('SELECT id, name FROM products').all() as { id: number; name: string }[];
     const productMapByName = new Map(allProductsFromDB.map(p => [p.name, p.id]));
+    
+    const usersFromDB = db.prepare('SELECT id, email FROM users').all() as {id: number; email: string}[];
+    const userEmailToIdMap = new Map(usersFromDB.map(u => [u.email, u.id]));
 
-    const orderIdMapping: Record<string, number> = {}; // To map mock order "ID" strings to actual DB IDs
+    const orderIdMapping: Record<string, number> = {}; 
 
     db.transaction(() => {
-      // Insert orders and get their actual IDs
-      // We map mock user "ID" (like '1' for festus) to actual user ID from DB
-      const usersFromDB = db.prepare('SELECT id, email FROM users').all() as {id: number; email: string}[];
-      const userEmailToIdMap = new Map(usersFromDB.map(u => [u.email, u.id]));
-
-
       initialOrdersData.forEach((order, index) => {
-        // Find the actual userId from the userEmailToIdMap
         const actualUserId = userEmailToIdMap.get(order.customerEmail as string);
         if (!actualUserId) {
-          console.warn(`Could not find user ID for email ${order.customerEmail} when seeding order. Skipping order.`);
+          console.warn(`Could not find user ID for email ${order.customerEmail} when seeding order ${order.userId}. Skipping order.`);
           return;
         }
 
         const info = insertOrder.run({
             ...order,
-            userId: actualUserId, // Use actual user ID
+            userId: actualUserId,
             shippingAddress: JSON.stringify(order.shippingAddress)
         });
-        // The mock order's 'userId' in initialOrdersData was used as a key,
-        // which doesn't directly map to our order item mock structure.
-        // Instead, we'll use the index as a key for now for simplicity in mock data mapping.
-        orderIdMapping[String(index + 1)] = info.lastInsertRowid as number;
+        orderIdMapping[order.userId + '-' + index] = info.lastInsertRowid as number; // Use a more unique key if userId can repeat
       });
 
-
-      // Insert order items, mapping to the generated order IDs and looking up product IDs
       initialOrderItemsData.forEach((item, idx) => {
-          // This assumes initialOrderItemsData directly corresponds to initialOrdersData items
-          // by their array index (1-based for the mock 'orderId' field in the old data)
-          // Let's find which order this item belongs to.
-          // This part is tricky because the old mock `item.orderId` doesn't exist in new `initialOrderItemsData`.
-          // We'll assume for mock purposes that the first item in initialOrderItemsData belongs to the first order, etc.
-          // Or, more reliably, we need a way to link items to orders in the mock data itself.
-          // Let's assume initialOrderItemsData[i] belongs to initialOrdersData[i].
-          // This requires initialOrderItemsData and initialOrdersData to be structured such that items correspond.
-          // A better mock data structure would have items nested within orders.
-
-          // Given the current structure, we need to be careful. Let's map based on a logical grouping if possible.
-          // For this example, let's hardcode the mapping for simplicity of this fix stage:
-          // Item 0 -> Order 1 (initialOrdersData[0] -> orderIdMapping['1'])
-          // Item 1 -> Order 2 (initialOrdersData[1] -> orderIdMapping['2'])
-          // Item 2 -> Order 3 (initialOrdersData[2] -> orderIdMapping['3'])
-          // Item 3 -> Order 4 (initialOrdersData[3] -> orderIdMapping['4'])
+          let targetMockOrderKey: string | undefined;
+          // Map initialOrderItemsData index to initialOrdersData index if they correspond 1-to-1
+          // This mapping logic needs to be robust based on how mock items relate to mock orders
+          if (idx === 0 && initialOrdersData[0]) targetMockOrderKey = initialOrdersData[0].userId + '-0'; 
+          else if (idx === 1 && initialOrdersData[1]) targetMockOrderKey = initialOrdersData[1].userId + '-1';
+          else if (idx === 2 && initialOrdersData[2]) targetMockOrderKey = initialOrdersData[2].userId + '-2';
+          else if (idx === 3 && initialOrdersData[3]) targetMockOrderKey = initialOrdersData[3].userId + '-3';
           
-          let targetMockOrderIdKey: string | undefined;
-          if (idx === 0) targetMockOrderIdKey = '1'; // First item maps to mock order '1'
-          else if (idx === 1) targetMockOrderIdKey = '2'; // Second item to mock order '2'
-          else if (idx === 2) targetMockOrderIdKey = '3'; // Third item to mock order '3'
-          else if (idx === 3) targetMockOrderIdKey = '4'; // Fourth item to mock order '4'
-
-
-          const actualOrderId = targetMockOrderIdKey ? orderIdMapping[targetMockOrderIdKey] : undefined;
+          const actualOrderId = targetMockOrderKey ? orderIdMapping[targetMockOrderKey] : undefined;
           const actualProductId = productMapByName.get(item.productName);
 
           if (actualOrderId && actualProductId !== undefined) {
@@ -272,7 +244,7 @@ function initializeDatabase() {
                 size: item.size || null,
             });
           } else {
-            console.warn(`Could not seed order item for product "${item.productName}". Order ID: ${actualOrderId}, Product ID: ${actualProductId}`);
+            console.warn(`Could not seed order item for product "${item.productName}". Mapped Order ID: ${actualOrderId}, Product ID: ${actualProductId}`);
           }
       });
     })();
@@ -280,7 +252,7 @@ function initializeDatabase() {
   }
 }
 
-// Ensure database is initialized when this module is first imported
 initializeDatabase();
 
 export default db;
+    
