@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -6,8 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { CreditCard, Smartphone } from 'lucide-react';
+import { CreditCard, Smartphone, CalendarIcon, LockKeyhole } from 'lucide-react'; // Added CalendarIcon, LockKeyhole
 import Link from 'next/link';
+import React, { useState } from 'react'; // Added useState
 
 // Mock data
 const cartSummary = {
@@ -21,9 +23,12 @@ const cartSummary = {
 };
 
 export default function CheckoutPage() {
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('mobile-money');
+
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    console.log('Placing order...');
+    console.log('Placing order with payment method:', selectedPaymentMethod);
+    // Further logic to handle order placement based on payment method
     // Redirect to order confirmation page
   };
 
@@ -56,7 +61,7 @@ export default function CheckoutPage() {
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="phone">Phone Number (for Mobile Money)</Label>
-                <Input id="phone" type="tel" placeholder="024xxxxxxx" required />
+                <Input id="phone" type="tel" placeholder="024xxxxxxx" required={selectedPaymentMethod === 'mobile-money'} />
               </div>
             </CardContent>
           </Card>
@@ -67,7 +72,11 @@ export default function CheckoutPage() {
               <CardDescription>Select your preferred payment method.</CardDescription>
             </CardHeader>
             <CardContent>
-              <RadioGroup defaultValue="mobile-money" className="space-y-2">
+              <RadioGroup 
+                value={selectedPaymentMethod} 
+                onValueChange={setSelectedPaymentMethod} 
+                className="space-y-2"
+              >
                 <Label htmlFor="mobile-money" className="flex items-center space-x-3 border rounded-md p-4 hover:bg-muted/50 cursor-pointer has-[:checked]:border-primary has-[:checked]:ring-1 has-[:checked]:ring-primary">
                   <RadioGroupItem value="mobile-money" id="mobile-money" />
                   <Smartphone className="h-5 w-5 text-primary" />
@@ -79,9 +88,46 @@ export default function CheckoutPage() {
                   <span>Credit/Debit Card</span>
                 </Label>
               </RadioGroup>
-              {/* Conditional fields for card payment can be added here */}
             </CardContent>
           </Card>
+
+          {selectedPaymentMethod === 'card' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-headline">Card Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="cardName">Name on Card</Label>
+                  <Input id="cardName" placeholder="Festus Us" required={selectedPaymentMethod === 'card'} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="cardNumber">Card Number</Label>
+                  <div className="relative">
+                    <Input id="cardNumber" placeholder="•••• •••• •••• ••••" required={selectedPaymentMethod === 'card'} />
+                    <CreditCard className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="cardExpiry">Expiry Date (MM/YY)</Label>
+                     <div className="relative">
+                        <Input id="cardExpiry" placeholder="MM/YY" required={selectedPaymentMethod === 'card'} />
+                        <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="cardCvc">CVC</Label>
+                    <div className="relative">
+                        <Input id="cardCvc" placeholder="•••" required={selectedPaymentMethod === 'card'} />
+                        <LockKeyhole className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
         </div>
 
         {/* Order Summary */}
