@@ -39,7 +39,7 @@ export default function AdminLoginPage() {
           description: 'You are not authorized to access the admin panel.', 
           variant: 'destructive' 
         });
-        logout(); // Log out non-admin user
+        logout();
       }
     }
     // If login fails (currentUser remains null and isLoadingAuth becomes false), 
